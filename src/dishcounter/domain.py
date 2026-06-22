@@ -23,9 +23,9 @@ class Hand:
 
 @dataclass
 class WashEvent:
-    """A single counted (or uncertain) dish wash."""
+    """A single counted (or uncertain) wash."""
 
     person: str  # "You" | "Wife" | "uncertain"
     timestamp: float
     confidence: float
-    source_id: int  # tracker id of the dish (or hand) that produced the event
+    source_id: int  # tracker id of the hand that produced the event
