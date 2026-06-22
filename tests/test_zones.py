@@ -29,7 +29,7 @@ def test_sink_to_drying_emits_one_event_for_you():
     events = eng.process([_hand_at(150, hand_id=1)], now=1.0)     # now in drying
     assert len(events) == 1
     assert events[0].person == "You"
-    assert events[0].hand_id == 1
+    assert events[0].source_id == 1
 
 
 def test_no_event_without_prior_sink_visit():

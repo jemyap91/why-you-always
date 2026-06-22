@@ -58,7 +58,7 @@ class ZoneEventEngine:
                             person=state.locked_person,
                             timestamp=now,
                             confidence=state.locked_confidence,
-                            hand_id=hand.id,
+                            source_id=hand.id,
                         )
                     )
                     state.last_fire_time = now

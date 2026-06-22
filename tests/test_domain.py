@@ -1,6 +1,6 @@
 import numpy as np
 
-from dishcounter.domain import Hand, WashEvent, bgr_to_ycrcb, median_chroma
+from dishcounter.domain import Dish, Hand, WashEvent, bgr_to_ycrcb, median_chroma
 
 
 def test_hand_centroid_is_bbox_center():
@@ -16,8 +16,8 @@ def test_hand_defaults_are_independent():
 
 
 def test_washevent_fields():
-    ev = WashEvent(person="You", timestamp=123.0, confidence=0.9, hand_id=7)
-    assert (ev.person, ev.timestamp, ev.confidence, ev.hand_id) == ("You", 123.0, 0.9, 7)
+    ev = WashEvent(person="You", timestamp=123.0, confidence=0.9, source_id=7)
+    assert (ev.person, ev.timestamp, ev.confidence, ev.source_id) == ("You", 123.0, 0.9, 7)
 
 
 def test_bgr_to_ycrcb_pure_gray_has_neutral_chroma():
@@ -38,3 +38,13 @@ def test_median_chroma_returns_median_over_pixels():
     cr, cb = median_chroma(pixels)
     assert round(cr) == 128
     assert round(cb) == 128
+
+
+def test_dish_centroid_is_bbox_center():
+    dish = Dish(id=1, bbox=(10, 20, 30, 40), label="plate", confidence=0.9)
+    assert dish.centroid == (20.0, 30.0)
+
+
+def test_wash_event_has_source_id():
+    ev = WashEvent(person="You", timestamp=1.0, confidence=0.5, source_id=7)
+    assert ev.source_id == 7
