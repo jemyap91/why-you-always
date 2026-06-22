@@ -85,3 +85,23 @@ def test_two_hands_cross_independently():
         [_hand_at(150, hand_id=1), _hand_at(160, region=blue, hand_id=2)], now=1.0
     )
     assert {e.person for e in events} == {"You", "Wife"}
+
+
+def test_lingering_in_drying_after_fire_does_not_double_count():
+    eng = _engine()
+    eng.process([_hand_at(50, hand_id=1)], now=0.0)        # in sink
+    first = eng.process([_hand_at(150, hand_id=1)], now=1.0)  # crosses -> 1 event
+    assert len(first) == 1
+    # Hand stays in the drying zone on the next frame: must NOT re-fire.
+    second = eng.process([_hand_at(150, hand_id=1)], now=1.5)
+    assert second == []
+
+
+def test_refire_at_exact_cooldown_boundary_is_allowed():
+    eng = _engine()
+    eng.process([_hand_at(50, hand_id=1)], now=0.0)
+    eng.process([_hand_at(150, hand_id=1)], now=1.0)        # fires at t=1.0
+    # Re-enter sink, then cross exactly cooldown (3.0s) after the fire: allowed.
+    eng.process([_hand_at(50, hand_id=1)], now=3.5)
+    again = eng.process([_hand_at(150, hand_id=1)], now=4.0)  # 4.0 - 1.0 == 3.0 == cooldown
+    assert len(again) == 1
