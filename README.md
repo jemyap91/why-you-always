@@ -174,7 +174,7 @@ camera, fake hand detector, and fake dish detector implementations drive the who
 flow, so the suite runs anywhere (Ultralytics/MediaPipe are never imported in tests):
 
 ```bash
-.venv/bin/pytest         # 60 tests, no hardware needed
+.venv/bin/pytest         # full suite, no hardware needed
 .venv/bin/ruff check .   # lint
 ```
 
