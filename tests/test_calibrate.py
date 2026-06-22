@@ -1,6 +1,28 @@
 import numpy as np
 
-from dishcounter.calibrate import profile_from_region, zone_from_drag
+from dishcounter.calibrate import (
+    MIN_PROFILE_SEPARATION,
+    profile_from_region,
+    profile_separation,
+    profiles_distinct,
+    zone_from_drag,
+)
+from dishcounter.config import SkinProfile
+
+
+def test_profiles_distinct_rejects_near_identical_profiles():
+    # Regression for the real-world bug: two captures 0.3 apart can never be
+    # told apart, so the guard must flag them.
+    a = SkinProfile(cr=143.7, cb=115.3)
+    b = SkinProfile(cr=143.9, cb=115.1)
+    assert profile_separation(a, b) < MIN_PROFILE_SEPARATION
+    assert profiles_distinct(a, b) is False
+
+
+def test_profiles_distinct_accepts_well_separated_profiles():
+    a = SkinProfile(cr=165.0, cb=110.0)
+    b = SkinProfile(cr=120.0, cb=150.0)
+    assert profiles_distinct(a, b) is True
 
 
 def test_profile_from_region_matches_median_chroma():
