@@ -1,6 +1,8 @@
 """Turns debounced hand gestures into the active washer for a session. A
 gesture must be held continuously for `hold_seconds` before it takes effect, so
-a fleeting pose mid-wash will not flip the session."""
+a fleeting pose mid-wash will not flip the session. Each number toggles its own
+person: show it to start, show it again to end; show the other number to switch.
+A fist (or any other pose) does nothing."""
 
 from __future__ import annotations
 
@@ -14,8 +16,8 @@ class SessionController:
         self._acted = False
 
     def update(self, gesture: str, now: float) -> str | None:
-        if gesture not in ("one", "two", "fist"):
-            # 'other' / unrecognized breaks the hold streak.
+        if gesture not in ("one", "two"):
+            # fist / 'other' / unrecognized: no effect, just break the hold streak.
             self._candidate = None
             self._since = None
             self._acted = False
@@ -29,9 +31,7 @@ class SessionController:
         if not self._acted and self._since is not None and (now - self._since) >= self._hold:
             self._acted = True
             if gesture == "one":
-                self.active = "You"
-            elif gesture == "two":
-                self.active = "Wife"
-            else:  # fist
-                self.active = None
+                self.active = None if self.active == "You" else "You"
+            else:  # two
+                self.active = None if self.active == "Wife" else "Wife"
         return self.active
