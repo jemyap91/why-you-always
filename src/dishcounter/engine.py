@@ -48,7 +48,7 @@ class Engine:
         config: Config,
         store: CountStore,
         state: SharedState,
-        clock: Callable[[], float] = time.monotonic,
+        clock: Callable[[], float] = time.time,
         jpeg_encoder: Callable[[np.ndarray], bytes] = encode_jpeg,
         annotator: Callable = annotate,
     ) -> None:

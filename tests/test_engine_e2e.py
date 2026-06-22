@@ -66,3 +66,28 @@ def test_process_frame_publishes_counts(sample_config, blank_frame):
     events = engine.process_frame(blank_frame, now=1.0)
     assert len(events) == 1
     assert events[0].person == "Wife"
+
+
+def test_today_tally_correct_with_epoch_timestamps(sample_config, blank_frame):
+    # Regression: the engine must feed CountStore epoch-based timestamps so the
+    # "today" day-bounds (datetime.fromtimestamp) are meaningful. A monotonic
+    # clock would bucket events against a nonsense calendar day.
+    from datetime import datetime
+
+    t0 = datetime(2026, 6, 22, 12, 0, 0).timestamp()
+    detector = FakeHandDetector([[_hand(95, RED)], [_hand(105, RED)]])
+    store = CountStore(":memory:")
+    engine = Engine(
+        FakeCamera([]),
+        detector,
+        sample_config,
+        store,
+        SharedState(),
+        clock=lambda: t0,
+        jpeg_encoder=lambda frame: b"x",
+    )
+    engine.process_frame(blank_frame, now=t0)        # hand in sink -> lock You
+    engine.process_frame(blank_frame, now=t0 + 1.0)  # hand in drying -> fire You
+    totals = store.totals(t0 + 1.0)
+    assert totals["today"] == {"You": 1, "Wife": 0}
+    assert totals["all_time"] == {"You": 1, "Wife": 0}
