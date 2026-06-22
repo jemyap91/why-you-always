@@ -79,7 +79,9 @@ class Engine:
 
         t = config.thresholds
         self._hand_tracker = IouTracker(iou_threshold=t.iou_match)
-        self._dish_tracker = IouTracker(iou_threshold=t.iou_match)
+        self._dish_tracker = IouTracker(
+            iou_threshold=t.iou_match, coast_seconds=t.track_coast
+        )
         self._session = SessionController(hold_seconds=t.gesture_hold)
         self._fusion = FusionEngine(
             config.sink_zone, exit_grace=t.exit_grace, cooldown=t.cooldown
@@ -94,8 +96,8 @@ class Engine:
         return "other"
 
     def process_frame(self, frame: np.ndarray, now: float) -> list[WashEvent]:
-        hands = self._hand_tracker.update(self._detector.detect(frame))
-        dishes = self._dish_tracker.update(self._dish_detector.detect(frame))
+        hands = self._hand_tracker.update(self._detector.detect(frame), now)
+        dishes = self._dish_tracker.update(self._dish_detector.detect(frame), now)
         gesture = self._resolve_gesture(hands)
         active = self._session.update(gesture, now)
         events = self._fusion.process(dishes, now, active)

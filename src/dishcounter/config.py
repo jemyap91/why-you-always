@@ -39,6 +39,9 @@ class Thresholds(BaseModel):
     cooldown: float = 3.0            # seconds before the same person can re-fire
     iou_match: float = 0.3           # IoU needed to keep a track's id
     gesture_hold: float = 1.0        # seconds a gesture must be held to act
+    track_coast: float = 2.0         # seconds a lost dish track is kept alive
+                                     # (bridges detector flicker so one dish
+                                     # isn't counted many times)
 
 
 class Config(BaseModel):

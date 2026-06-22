@@ -51,3 +51,38 @@ def test_tracker_assigns_stable_ids_to_dishes():
     d2 = Dish(id=None, bbox=(5, 5, 45, 45), label="plate", confidence=0.9)
     [tracked2] = tracker.update([d2])
     assert tracked2.id == first_id
+
+
+def test_coasting_reemits_lost_track_then_drops_it():
+    from dishcounter.domain import Dish
+
+    tr = IouTracker(iou_threshold=0.3, coast_seconds=2.0)
+    d = Dish(id=None, bbox=(0, 0, 40, 40), label="plate", confidence=0.9)
+    [t0] = tr.update([d], now=0.0)
+    first = t0.id
+    # Missed frame within the coast window -> the track is re-emitted (ghost).
+    coasted = tr.update([], now=1.0)
+    assert len(coasted) == 1 and coasted[0].id == first
+    coasted2 = tr.update([], now=1.9)
+    assert len(coasted2) == 1 and coasted2[0].id == first
+    # Beyond the coast window -> dropped.
+    assert tr.update([], now=2.5) == []
+
+
+def test_coasting_reassociates_returning_detection_to_same_id():
+    from dishcounter.domain import Dish
+
+    tr = IouTracker(iou_threshold=0.3, coast_seconds=2.0)
+    [a] = tr.update([Dish(id=None, bbox=(0, 0, 40, 40), label="p", confidence=0.9)], now=0.0)
+    first = a.id
+    tr.update([], now=1.0)  # coasting (no detection this frame)
+    [b] = tr.update([Dish(id=None, bbox=(5, 5, 45, 45), label="p", confidence=0.9)], now=1.5)
+    assert b.id == first  # returning detection re-uses the coasted id
+
+
+def test_no_coasting_by_default_drops_immediately():
+    from dishcounter.domain import Dish
+
+    tr = IouTracker(iou_threshold=0.3)  # coast_seconds defaults to 0
+    tr.update([Dish(id=None, bbox=(0, 0, 40, 40), label="p", confidence=0.9)], now=0.0)
+    assert tr.update([], now=0.5) == []  # dropped immediately, no ghost

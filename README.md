@@ -161,6 +161,7 @@ hand.
 | `gesture_hold` | `1.0` | Seconds a gesture must be held before a session starts or ends | **Raise** if sessions start too easily (accidental gestures); **lower** for snappier switching |
 | `exit_grace` | `1.5` | Seconds a dish must be gone from view before it's counted (debounces detection flicker) | **Raise** if a dish flickers out mid-wash and gets counted early; **lower** for a snappier count |
 | `cooldown` | `3.0` | Minimum seconds before the same **person** can be counted again | **Raise** if a single wash is being double-counted |
+| `track_coast` | `2.0` | Seconds a lost dish track is kept alive so detector flicker (suds/hands hiding a dish mid-wash) doesn't spawn extra counts | **Raise** if one dish is counted several times while you wash it; **lower** if two dishes washed in quick succession get merged into one |
 | `iou_match` | `0.3` | How much a box must overlap frame-to-frame to be treated as the same hand/dish | Rarely needs changing |
 
 After editing, just restart `dishcounter run`.

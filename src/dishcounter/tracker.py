@@ -1,9 +1,23 @@
 """Greedy IoU tracker: assigns stable integer ids to any boxed object across
-frames so downstream logic can reason about 'the same object' over time."""
+frames so downstream logic can reason about 'the same object' over time.
+
+With `coast_seconds > 0`, a track that is missed in a frame is kept alive (and
+re-emitted with its last-known box) for that long, and a returning detection
+re-attaches to the same id. This bridges detector flicker so one physical object
+does not churn through many ids — which would otherwise read as many separate
+appear/disappear events downstream."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 Box = tuple[int, int, int, int]
+
+
+@dataclass
+class _Track:
+    item: object       # the last detected object (re-emitted while coasting)
+    last_seen: float   # `now` of the last real detection
 
 
 def iou(a: Box, b: Box) -> float:
@@ -22,20 +36,20 @@ def iou(a: Box, b: Box) -> float:
 
 
 class IouTracker:
-    def __init__(self, iou_threshold: float = 0.3) -> None:
+    def __init__(self, iou_threshold: float = 0.3, coast_seconds: float = 0.0) -> None:
         self._iou_threshold = iou_threshold
+        self._coast_seconds = coast_seconds
         self._next_id = 0
-        self._tracks: dict[int, Box] = {}  # id -> last bbox
+        self._tracks: dict[int, _Track] = {}  # id -> track
 
-    def update(self, items: list) -> list:
+    def update(self, items: list, now: float = 0.0) -> list:
         unmatched_tracks = dict(self._tracks)
-        new_tracks: dict[int, Box] = {}
 
         # Greedy: best (item, track) IoU pairs first.
         candidates = [
-            (iou(it.bbox, box), idx, tid)
+            (iou(it.bbox, tr.item.bbox), idx, tid)
             for idx, it in enumerate(items)
-            for tid, box in unmatched_tracks.items()
+            for tid, tr in unmatched_tracks.items()
         ]
         candidates.sort(reverse=True)
 
@@ -48,16 +62,25 @@ class IouTracker:
             assigned[idx] = tid
             del unmatched_tracks[tid]
 
+        result: list = []
+        new_tracks: dict[int, _Track] = {}
         for idx, item in enumerate(items):
             if idx in assigned:
                 item.id = assigned[idx]
             else:
                 item.id = self._next_id
                 self._next_id += 1
-            new_tracks[item.id] = item.bbox
+            new_tracks[item.id] = _Track(item=item, last_seen=now)
+            result.append(item)
+
+        # Coast tracks not detected this frame: keep + re-emit until they age out.
+        for tid, tr in unmatched_tracks.items():
+            if (now - tr.last_seen) < self._coast_seconds:
+                new_tracks[tid] = tr
+                result.append(tr.item)
 
         self._tracks = new_tracks
-        return items
+        return result
 
 
 HandTracker = IouTracker  # back-compat: hands are just boxed objects
