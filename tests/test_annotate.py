@@ -6,14 +6,7 @@ from dishcounter.engine import annotate
 
 
 def _cfg() -> Config:
-    return Config(
-        camera_index=0,
-        sink_zone=Zone(x1=0, y1=0, x2=50, y2=50),
-        you_profile=__import__("dishcounter.config", fromlist=["SkinProfile"])
-        .SkinProfile(cr=165.0, cb=110.0),
-        wife_profile=__import__("dishcounter.config", fromlist=["SkinProfile"])
-        .SkinProfile(cr=120.0, cb=150.0),
-    )
+    return Config(camera_index=0, sink_zone=Zone(x1=0, y1=0, x2=50, y2=50))
 
 
 def test_annotate_runs_with_active_session_and_preserves_shape():
