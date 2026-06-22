@@ -88,6 +88,9 @@ or the lighting changes a lot.
 .venv/bin/dishcounter run
 ```
 
+On first run, the YOLO-World weights (`yolov8s-worldv2.pt`, ~25 MB) download
+automatically. Dish classes are configurable in `config.yaml` (`dish_classes`).
+
 Then open **http://127.0.0.1:8000** in a browser. You'll see:
 
 - The **live camera feed** with the sink zone (blue) and drying zone (green) drawn on
