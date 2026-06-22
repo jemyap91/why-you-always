@@ -9,18 +9,6 @@ import yaml
 from pydantic import BaseModel
 
 
-DEFAULT_DISH_CLASSES = [
-    "plate",
-    "bowl",
-    "cup",
-    "glass",
-    "mug",
-    "fork",
-    "knife",
-    "spoon",
-]
-
-
 class Zone(BaseModel):
     x1: int
     y1: int
@@ -35,7 +23,6 @@ class Zone(BaseModel):
 
 
 class Thresholds(BaseModel):
-    exit_grace: float = 1.5          # (unused after wash-cycle cutover; removed in cleanup)
     cooldown: float = 3.0            # seconds before the same person can re-fire
     iou_match: float = 0.3           # IoU needed to keep a track's id
     gesture_hold: float = 1.0        # seconds a gesture must be held to act
@@ -46,9 +33,6 @@ class Thresholds(BaseModel):
 class Config(BaseModel):
     camera_index: int
     sink_zone: Zone
-    dish_classes: list[str] = DEFAULT_DISH_CLASSES
-    dish_conf: float = 0.4
-    yolo_model: str = "yolov8s-worldv2.pt"
     thresholds: Thresholds = Thresholds()
 
     @classmethod

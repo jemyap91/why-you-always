@@ -11,7 +11,6 @@ dependencies = [
     "uvicorn>=0.29",
     "websockets>=12",  # WebSocket protocol backend uvicorn needs for the /ws scoreboard
     "pydantic>=2.6",
-    "ultralytics>=8.2",
     "pyyaml>=6.0",
 ]
 

@@ -1,4 +1,4 @@
-from dishcounter.domain import Dish, Hand, WashEvent
+from dishcounter.domain import Hand, WashEvent
 
 
 def test_hand_centroid_is_bbox_center():
@@ -16,11 +16,6 @@ def test_hand_defaults_are_independent():
 def test_washevent_fields():
     ev = WashEvent(person="You", timestamp=123.0, confidence=0.9, source_id=7)
     assert (ev.person, ev.timestamp, ev.confidence, ev.source_id) == ("You", 123.0, 0.9, 7)
-
-
-def test_dish_centroid_is_bbox_center():
-    dish = Dish(id=1, bbox=(10, 20, 30, 40), label="plate", confidence=0.9)
-    assert dish.centroid == (20.0, 30.0)
 
 
 def test_wash_event_has_source_id():

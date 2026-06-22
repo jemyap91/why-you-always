@@ -22,21 +22,6 @@ class Hand:
 
 
 @dataclass
-class Dish:
-    """A detected dish for one frame, from the object detector."""
-
-    id: int | None
-    bbox: tuple[int, int, int, int]  # x1, y1, x2, y2
-    label: str = ""
-    confidence: float = 0.0
-
-    @property
-    def centroid(self) -> tuple[float, float]:
-        x1, y1, x2, y2 = self.bbox
-        return ((x1 + x2) / 2.0, (y1 + y2) / 2.0)
-
-
-@dataclass
 class WashEvent:
     """A single counted (or uncertain) dish wash."""
 
