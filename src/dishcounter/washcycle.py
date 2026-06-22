@@ -46,9 +46,13 @@ class WashCycleEngine:
                 continue
             self._close(self._visits[hid], hid, now, active_washer, events)
             del self._visits[hid]
+        self._visits = {
+            hid: v for hid, v in self._visits.items() if v.enter_time is not None
+        }
         return events
 
-    def _close(self, visit, hand_id, now, active_washer, events) -> None:
+    def _close(self, visit: _Visit, hand_id: int, now: float,
+               active_washer: str | None, events: list[WashEvent]) -> None:
         if visit.enter_time is None:
             return
         dwell = visit.last_in_sink - visit.enter_time

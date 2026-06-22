@@ -84,3 +84,11 @@ def test_hand_flicker_during_wash_counts_once():
         hands = tracker.update([Hand(id=None, bbox=(40, 40, 60, 60))] if present else [], now)
         count += len(eng.process(hands, now, "You"))
     assert count == 1
+
+
+def test_idle_out_of_sink_hands_do_not_accumulate_state():
+    eng = WashCycleEngine(SINK, min_wash=3.0, cooldown=3.0)
+    # Many distinct hand ids appear only outside the sink across frames.
+    for i in range(50):
+        eng.process([_out(i)], float(i), "You")
+    assert eng._visits == {}  # no dead entries left behind
