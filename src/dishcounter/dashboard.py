@@ -4,6 +4,7 @@ WebSocket. Reads SharedState snapshots; never touches the camera directly."""
 from __future__ import annotations
 
 import asyncio
+import time
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
@@ -67,6 +68,7 @@ def create_app(state: SharedState) -> FastAPI:
                         + jpeg
                         + b"\r\n"
                     )
+                time.sleep(0.05)
 
         return StreamingResponse(
             frames(), media_type="multipart/x-mixed-replace; boundary=frame"
@@ -85,7 +87,7 @@ def create_app(state: SharedState) -> FastAPI:
                     }
                 )
                 await asyncio.sleep(0.5)
-        except WebSocketDisconnect:
+        except (WebSocketDisconnect, RuntimeError):
             return
 
     return app
