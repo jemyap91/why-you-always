@@ -1,5 +1,3 @@
-import numpy as np
-
 from dishcounter.camera import FakeCamera
 from dishcounter.detector import FakeHandDetector
 from dishcounter.dish_detector import FakeDishDetector

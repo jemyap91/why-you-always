@@ -5,8 +5,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import numpy as np
-
 
 @dataclass
 class Hand:
@@ -46,22 +44,3 @@ class WashEvent:
     timestamp: float
     confidence: float
     source_id: int  # tracker id of the dish (or hand) that produced the event
-
-
-def bgr_to_ycrcb(b: float, g: float, r: float) -> tuple[float, float, float]:
-    """BT.601 conversion matching cv2.COLOR_BGR2YCrCb. Inputs/outputs 0-255."""
-    y = 0.299 * r + 0.587 * g + 0.114 * b
-    cr = (r - y) * 0.713 + 128.0
-    cb = (b - y) * 0.564 + 128.0
-    return (y, cr, cb)
-
-
-def median_chroma(pixels_bgr: np.ndarray) -> tuple[float, float]:
-    """Median (Cr, Cb) over an (N, 3) BGR pixel array. Median is robust to
-    the suds/occlusion outliers that washing introduces."""
-    arr = np.asarray(pixels_bgr, dtype=np.float64).reshape(-1, 3)
-    b, g, r = arr[:, 0], arr[:, 1], arr[:, 2]
-    y = 0.299 * r + 0.587 * g + 0.114 * b
-    cr = (r - y) * 0.713 + 128.0
-    cb = (b - y) * 0.564 + 128.0
-    return (float(np.median(cr)), float(np.median(cb)))
