@@ -2,7 +2,8 @@ import numpy as np
 
 from dishcounter.camera import FakeCamera
 from dishcounter.detector import FakeHandDetector
-from dishcounter.domain import Hand
+from dishcounter.dish_detector import FakeDishDetector
+from dishcounter.domain import Dish, Hand
 from dishcounter.engine import Engine
 from dishcounter.state import SharedState
 from dishcounter.store import CountStore
@@ -12,9 +13,11 @@ BLUE = np.tile(np.array([220, 90, 90], dtype=np.uint8), (16, 1))  # -> Wife
 
 
 def _hand(cx, region):
-    # Width-40 box so consecutive frames overlap (IoU tracking keeps the id),
-    # modelling a hand moving continuously across the sink->drying boundary.
-    return Hand(id=None, bbox=(cx - 20, 45, cx + 20, 55), region_pixels=region)
+    return Hand(id=None, bbox=(cx - 20, 40, cx + 20, 60), region_pixels=region)
+
+
+def _dish(cx):
+    return Dish(id=None, bbox=(cx - 20, 40, cx + 20, 60), label="plate", confidence=0.9)
 
 
 def _fake_clock(times):
@@ -22,72 +25,70 @@ def _fake_clock(times):
     return lambda: next(it)
 
 
-def test_full_pipeline_counts_one_wash_for_you(sample_config, blank_frame):
-    # Frame 0: hand centroid at cx=95 (inside sink zone 0..100).
-    # Frame 1: hand centroid at cx=105 (inside drying zone 100..200).
-    # The width-40 boxes overlap (IoU ~0.6) so IoU tracking keeps the same id.
-    script = [[_hand(95, RED)], [_hand(105, RED)]]
-    detector = FakeHandDetector(script)
-    camera = FakeCamera([blank_frame, blank_frame])
-    store = CountStore(":memory:")
-    state = SharedState()
-    engine = Engine(
-        camera,
-        detector,
-        sample_config,
-        store,
-        state,
-        clock=_fake_clock([100.0, 101.0]),
-        jpeg_encoder=lambda frame: b"jpeg",
-    )
-
-    engine.run()  # FakeCamera exhausts after 2 frames
-
-    now = 101.0
-    assert store.totals(now)["all_time"] == {"You": 1, "Wife": 0}
-    snap = state.snapshot()
-    assert snap["camera_online"] is True
-    assert snap["frame_jpeg"] == b"jpeg"
-    assert snap["counts"]["all_time"]["You"] == 1
-
-
-def test_process_frame_publishes_counts(sample_config, blank_frame):
-    detector = FakeHandDetector([[_hand(95, BLUE)], [_hand(105, BLUE)]])
-    engine = Engine(
-        FakeCamera([]),
-        detector,
+def _engine(sample_config, hand_script, dish_script, frames, times):
+    return Engine(
+        FakeCamera(frames),
+        FakeHandDetector(hand_script),
+        FakeDishDetector(dish_script),
         sample_config,
         CountStore(":memory:"),
         SharedState(),
-        clock=lambda: 0.0,
-        jpeg_encoder=lambda frame: b"x",
+        clock=_fake_clock(times) if times else (lambda: 0.0),
+        jpeg_encoder=lambda frame: b"jpeg",
     )
-    engine.process_frame(blank_frame, now=0.0)
-    events = engine.process_frame(blank_frame, now=1.0)
+
+
+def test_full_pipeline_counts_one_wash_for_you(sample_config, blank_frame):
+    # Frame 0: hand + dish in the sink (cx=50, sink zone 0..100) -> lock You.
+    # Frame 1: both gone; 2.0s > exit_grace (1.5) -> fire one You wash.
+    engine = _engine(
+        sample_config,
+        hand_script=[[_hand(50, RED)], []],
+        dish_script=[[_dish(50)], []],
+        frames=[blank_frame, blank_frame],
+        times=[100.0, 102.0],
+    )
+    engine.run()  # FakeCamera exhausts after 2 frames
+
+    assert engine_store_totals(engine) == {"You": 1, "Wife": 0}
+
+
+def engine_store_totals(engine):
+    return engine._store.totals(10_000_000_000.0)["all_time"]
+
+
+def test_process_frame_publishes_counts(sample_config, blank_frame):
+    engine = _engine(
+        sample_config,
+        hand_script=[[_hand(50, BLUE)], []],
+        dish_script=[[_dish(50)], []],
+        frames=[],
+        times=[],
+    )
+    engine.process_frame(blank_frame, now=0.0)        # dish in sink -> lock Wife
+    events = engine.process_frame(blank_frame, now=2.0)  # dish gone -> fire
     assert len(events) == 1
     assert events[0].person == "Wife"
 
 
 def test_today_tally_correct_with_epoch_timestamps(sample_config, blank_frame):
-    # Regression: the engine must feed CountStore epoch-based timestamps so the
+    # Regression: events must carry epoch wall-clock timestamps so CountStore's
     # "today" day-bounds (datetime.fromtimestamp) are meaningful. A monotonic
     # clock would bucket events against a nonsense calendar day.
     from datetime import datetime
 
     t0 = datetime(2026, 6, 22, 12, 0, 0).timestamp()
-    detector = FakeHandDetector([[_hand(95, RED)], [_hand(105, RED)]])
-    store = CountStore(":memory:")
-    engine = Engine(
-        FakeCamera([]),
-        detector,
+    engine = _engine(
         sample_config,
-        store,
-        SharedState(),
-        clock=lambda: t0,
-        jpeg_encoder=lambda frame: b"x",
+        hand_script=[[_hand(50, RED)], []],
+        dish_script=[[_dish(50)], []],
+        frames=[],
+        times=[],
     )
-    engine.process_frame(blank_frame, now=t0)        # hand in sink -> lock You
-    engine.process_frame(blank_frame, now=t0 + 1.0)  # hand in drying -> fire You
-    totals = store.totals(t0 + 1.0)
+    engine.process_frame(blank_frame, now=t0)            # dish in sink -> lock You
+    events = engine.process_frame(blank_frame, now=t0 + 2.0)  # dish gone -> fire You
+    assert len(events) == 1
+    assert events[0].timestamp >= 1_000_000_000  # epoch, not monotonic
+    totals = engine._store.totals(t0 + 2.0)
     assert totals["today"] == {"You": 1, "Wife": 0}
     assert totals["all_time"] == {"You": 1, "Wife": 0}

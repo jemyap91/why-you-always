@@ -9,3 +9,6 @@ dishcounter.db
 *.egg-info/
 build/
 dist/
+
+# MediaPipe / model weights are downloaded on first run, never committed
+*.task

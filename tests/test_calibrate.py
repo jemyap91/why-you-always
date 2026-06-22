@@ -16,3 +16,12 @@ def test_zone_from_drag_normalizes_corners():
     assert zone.x2 == 120
     assert zone.y2 == 90
     assert zone.contains((70, 50))
+
+
+def test_calibration_module_does_not_reference_drying_zone():
+    import inspect
+
+    from dishcounter import calibrate
+
+    source = inspect.getsource(calibrate)
+    assert "drying" not in source

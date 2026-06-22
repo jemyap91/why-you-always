@@ -1,5 +1,5 @@
-from dishcounter.domain import Hand
-from dishcounter.tracker import HandTracker, iou
+from dishcounter.domain import Dish, Hand
+from dishcounter.tracker import HandTracker, IouTracker, iou
 
 
 def test_iou_identical_boxes_is_one():
@@ -40,3 +40,14 @@ def test_tracker_does_not_assign_one_track_to_two_hands():
         [Hand(id=None, bbox=(1, 1, 11, 11)), Hand(id=None, bbox=(2, 2, 12, 12))]
     )
     assert len({h.id for h in out}) == 2  # distinct ids
+
+
+def test_tracker_assigns_stable_ids_to_dishes():
+    tracker = IouTracker(iou_threshold=0.3)
+    d1 = Dish(id=None, bbox=(0, 0, 40, 40), label="plate", confidence=0.9)
+    [tracked] = tracker.update([d1])
+    first_id = tracked.id
+    # Next frame: heavily-overlapping box keeps the same id.
+    d2 = Dish(id=None, bbox=(5, 5, 45, 45), label="plate", confidence=0.9)
+    [tracked2] = tracker.update([d2])
+    assert tracked2.id == first_id

@@ -3,11 +3,28 @@ file that imports mediapipe; swapping detectors is a one-file change."""
 
 from __future__ import annotations
 
+import time
+import urllib.request
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 import numpy as np
 
 from dishcounter.domain import Hand
+
+_MODEL_URL = (
+    "https://storage.googleapis.com/mediapipe-models/"
+    "hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+)
+_MODEL_PATH = Path(__file__).parent / "hand_landmarker.task"
+
+
+def _ensure_model() -> Path:
+    if not _MODEL_PATH.exists():
+        print("Downloading MediaPipe hand landmark model (~8 MB)…")
+        urllib.request.urlretrieve(_MODEL_URL, _MODEL_PATH)
+        print("Done.")
+    return _MODEL_PATH
 
 
 @runtime_checkable
@@ -31,44 +48,55 @@ class FakeHandDetector:
 
 
 class MediaPipeHandDetector:
-    """Real detector. Lazy-imports mediapipe so the rest of the suite runs
-    without it installed."""
+    """Real detector using the MediaPipe Tasks API (mediapipe >= 0.10)."""
 
     def __init__(self, max_hands: int = 4, region_size: int = 24) -> None:
-        import mediapipe as mp  # noqa: PLC0415  (lazy by design)
+        import mediapipe as mp  # noqa: PLC0415
+        from mediapipe.tasks.python import vision  # noqa: PLC0415
+        from mediapipe.tasks.python.core.base_options import BaseOptions  # noqa: PLC0415
 
         self._region_size = region_size
-        self._hands = mp.solutions.hands.Hands(
-            static_image_mode=False,
-            max_num_hands=max_hands,
-            min_detection_confidence=0.5,
+        model_path = _ensure_model()
+        options = vision.HandLandmarkerOptions(
+            base_options=BaseOptions(model_asset_path=str(model_path)),
+            running_mode=vision.RunningMode.VIDEO,
+            num_hands=max_hands,
+            min_hand_detection_confidence=0.5,
+            min_hand_presence_confidence=0.5,
             min_tracking_confidence=0.5,
         )
+        self._detector = vision.HandLandmarker.create_from_options(options)
+        self._mp = mp
 
     def detect(self, frame: np.ndarray) -> list[Hand]:
         import cv2  # noqa: PLC0415
 
         h, w = frame.shape[:2]
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        result = self._hands.process(rgb)
+        mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
+        ts_ms = int(time.time() * 1000)
+        result = self._detector.detect_for_video(mp_image, ts_ms)
+
         hands: list[Hand] = []
-        if not result.multi_hand_landmarks:
+        if not result.hand_landmarks:
             return hands
 
-        confidences = self._handedness_scores(result)
-        for idx, lm in enumerate(result.multi_hand_landmarks):
-            pts = [(p.x, p.y) for p in lm.landmark]
+        for idx, lm_list in enumerate(result.hand_landmarks):
+            pts = [(lm.x, lm.y) for lm in lm_list]
             xs = [int(x * w) for x, _ in pts]
             ys = [int(y * h) for _, y in pts]
             bbox = (min(xs), min(ys), max(xs), max(ys))
             region = self._sample_region(frame, int(pts[0][0] * w), int(pts[0][1] * h))
+            score = 0.0
+            if result.handedness and idx < len(result.handedness):
+                score = result.handedness[idx][0].score
             hands.append(
                 Hand(
                     id=None,
                     bbox=bbox,
                     landmarks=pts,
                     region_pixels=region,
-                    confidence=confidences[idx] if idx < len(confidences) else 0.0,
+                    confidence=score,
                 )
             )
         return hands
@@ -80,9 +108,3 @@ class MediaPipeHandDetector:
         y1, y2 = max(0, cy - r), min(h, cy + r)
         crop = frame[y1:y2, x1:x2]
         return crop.reshape(-1, 3) if crop.size else np.empty((0, 3), dtype=np.uint8)
-
-    @staticmethod
-    def _handedness_scores(result) -> list[float]:
-        if not result.multi_handedness:
-            return []
-        return [h.classification[0].score for h in result.multi_handedness]

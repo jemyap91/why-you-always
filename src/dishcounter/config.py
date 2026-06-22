@@ -9,6 +9,18 @@ import yaml
 from pydantic import BaseModel
 
 
+DEFAULT_DISH_CLASSES = [
+    "plate",
+    "bowl",
+    "cup",
+    "glass",
+    "mug",
+    "fork",
+    "knife",
+    "spoon",
+]
+
+
 class Zone(BaseModel):
     x1: int
     y1: int
@@ -29,17 +41,19 @@ class SkinProfile(BaseModel):
 
 class Thresholds(BaseModel):
     identity_distance: float = 25.0  # max YCrCb distance to accept an identity
-    presence_window: float = 5.0     # seconds a sink visit stays "fresh"
-    cooldown: float = 3.0            # seconds before the same hand can re-fire
+    exit_grace: float = 1.5          # seconds a dish must be gone before counting
+    cooldown: float = 3.0            # seconds before the same person can re-fire
     iou_match: float = 0.3           # IoU needed to keep a track's id
 
 
 class Config(BaseModel):
     camera_index: int
     sink_zone: Zone
-    drying_zone: Zone
     you_profile: SkinProfile
     wife_profile: SkinProfile
+    dish_classes: list[str] = DEFAULT_DISH_CLASSES
+    dish_conf: float = 0.4
+    yolo_model: str = "yolov8s-worldv2.pt"
     thresholds: Thresholds = Thresholds()
 
     @classmethod
