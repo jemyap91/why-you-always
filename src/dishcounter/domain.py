@@ -10,13 +10,11 @@ import numpy as np
 
 @dataclass
 class Hand:
-    """A detected hand for one frame. `region_pixels` is an (N, 3) BGR sample
-    used for skin-tone classification; never persisted."""
+    """A detected hand for one frame."""
 
     id: int | None
     bbox: tuple[int, int, int, int]  # x1, y1, x2, y2
     landmarks: list[tuple[float, float]] = field(default_factory=list)
-    region_pixels: np.ndarray | None = None
     confidence: float = 0.0
 
     @property

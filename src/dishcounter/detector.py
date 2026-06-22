@@ -50,12 +50,11 @@ class FakeHandDetector:
 class MediaPipeHandDetector:
     """Real detector using the MediaPipe Tasks API (mediapipe >= 0.10)."""
 
-    def __init__(self, max_hands: int = 4, region_size: int = 24) -> None:
+    def __init__(self, max_hands: int = 4) -> None:
         import mediapipe as mp  # noqa: PLC0415
         from mediapipe.tasks.python import vision  # noqa: PLC0415
         from mediapipe.tasks.python.core.base_options import BaseOptions  # noqa: PLC0415
 
-        self._region_size = region_size
         model_path = _ensure_model()
         options = vision.HandLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=str(model_path)),
@@ -86,7 +85,6 @@ class MediaPipeHandDetector:
             xs = [int(x * w) for x, _ in pts]
             ys = [int(y * h) for _, y in pts]
             bbox = (min(xs), min(ys), max(xs), max(ys))
-            region = self._sample_region(frame, int(pts[0][0] * w), int(pts[0][1] * h))
             score = 0.0
             if result.handedness and idx < len(result.handedness):
                 score = result.handedness[idx][0].score
@@ -95,16 +93,8 @@ class MediaPipeHandDetector:
                     id=None,
                     bbox=bbox,
                     landmarks=pts,
-                    region_pixels=region,
                     confidence=score,
                 )
             )
         return hands
 
-    def _sample_region(self, frame: np.ndarray, cx: int, cy: int) -> np.ndarray:
-        r = self._region_size // 2
-        h, w = frame.shape[:2]
-        x1, x2 = max(0, cx - r), min(w, cx + r)
-        y1, y2 = max(0, cy - r), min(h, cy + r)
-        crop = frame[y1:y2, x1:x2]
-        return crop.reshape(-1, 3) if crop.size else np.empty((0, 3), dtype=np.uint8)

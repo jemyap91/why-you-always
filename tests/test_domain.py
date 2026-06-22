@@ -48,3 +48,8 @@ def test_dish_centroid_is_bbox_center():
 def test_wash_event_has_source_id():
     ev = WashEvent(person="You", timestamp=1.0, confidence=0.5, source_id=7)
     assert ev.source_id == 7
+
+
+def test_hand_has_no_region_pixels_field():
+    hand = Hand(id=1, bbox=(0, 0, 10, 10))
+    assert not hasattr(hand, "region_pixels")
