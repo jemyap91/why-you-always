@@ -96,7 +96,7 @@ class Engine:
                 if isinstance(getattr(self._camera, "_frames", None), list):
                     break
                 self._state.publish(None, self._store.totals(self._clock()), False)
-                time.sleep(min(backoff, self._config.thresholds.cooldown))
+                time.sleep(backoff)
                 backoff = min(backoff * 2, 5.0)
                 continue
             backoff = 0.5
