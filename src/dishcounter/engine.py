@@ -40,7 +40,7 @@ def annotate(frame: np.ndarray, config: Config, hands, active_washer, gesture
     if active_washer:
         banner, color = f"Session: {active_washer}", (0, 255, 0)
     else:
-        banner = "Session: none - show 1 finger (You) / 2 (Wife)"
+        banner = "Session: none - show 1 (You) / 2 (Wife), show again to end"
         color = (0, 165, 255)
     cv2.putText(out, banner, (8, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
     cv2.putText(out, f"gesture: {gesture}", (8, 60),

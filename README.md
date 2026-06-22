@@ -7,9 +7,10 @@ dishes **You** vs **Wife** wash at a shared kitchen sink, watched by a webcam.
   and then **leaves** — you carry the dish away. The act of leaving the sink is the
   counting trigger.
 - **Attribution is by hand gesture** — show **1 finger** to start a *You* session,
-  **2 fingers** to start a *Wife* session, or a **fist** to end the session. Every
-  wash that happens while a session is active is credited to that person. With no
-  active session nothing is counted — safe. No face recognition, no stored images.
+  **2 fingers** to start a *Wife* session; **show the same number again to end** it
+  (or the other number to switch). Every wash while a session is active is credited
+  to that person. With no active session nothing is counted — safe. No face
+  recognition, no stored images.
 - **Biased toward undercounting** — when no session is active, the app records
   nothing rather than guessing who washed a dish.
 
@@ -90,8 +91,8 @@ Then open **http://127.0.0.1:8000** in a browser. You'll see:
   - A bounding box around each detected **hand** — **green** when the hand is inside
     the sink zone, **amber** otherwise.
   - A **session banner** at the top of the frame (`Session: You` / `Session: Wife` /
-    `Session: none - show 1 finger (You) / 2 (Wife)`) and a `gesture: <name>` label
-    below it.
+    `Session: none - show 1 (You) / 2 (Wife), show again to end`) and a
+    `gesture: <name>` label below it.
 - A **scoreboard**: *You* vs *Wife*, showing **today** and **all-time** totals.
 - A **"camera offline"** notice if the webcam disconnects (the app keeps retrying).
 
@@ -102,10 +103,10 @@ Then open **http://127.0.0.1:8000** in a browser. You'll see:
 2. Wash a dish. Keep your hand in the sink for a few seconds (the default is 3 s),
    then lift the dish out and carry it away. The hand leaving the sink zone triggers
    the count.
-3. Repeat for each dish. Hold a **fist** for about 1 second when you're done — the
-   session ends and counting stops until the next gesture.
-4. The next person holds **2 fingers** to start a *Wife* session, then a **fist** to
-   end it.
+3. Repeat for each dish. When you're done, hold **1 finger** again for about 1
+   second — the session ends and counting stops until the next gesture.
+4. The next person holds **2 fingers** to start a *Wife* session, then **2 fingers**
+   again to end it (or just show 1/2 to switch directly).
 
 With no active session nothing is counted — so handing off or walking away is safe.
 
@@ -208,7 +209,7 @@ implementation plan.
 | Overcounting due to hand flickering | **Raise** `track_coast` so brief detection dropouts don't reset the dwell timer and produce extra counts. |
 | Session won't start | Hold 1 or 2 fingers steady, facing the camera, for the full `gesture_hold` duration (~1 s). Watch the `gesture:` label in the feed to confirm the hand is being read correctly. |
 | Session starts accidentally | Raise `gesture_hold` in `config.yaml` so a longer deliberate hold is required. |
-| Wrong person's session is active | Show a **fist** to end the current session, then show the correct finger count to start a new one. |
+| Wrong person's session is active | Show the correct finger count (1 or 2) to switch directly, or repeat the active number to end the session. |
 | One wash counts twice | Raise `cooldown` in `config.yaml`. |
 | Washes not counted during a valid session | Check the session banner shows the right name. Also check the sink zone is drawn around the basin — re-run `calibrate` if needed. |
 
