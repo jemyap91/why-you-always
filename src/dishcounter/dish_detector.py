@@ -45,12 +45,12 @@ def dishes_from_detections(detections: list[Detection], min_conf: float) -> list
 class YoloWorldDishDetector:
     """Real detector using Ultralytics open-vocabulary YOLO-World."""
 
-    def __init__(
+    def __init__(  # pragma: no cover - loads model weights
         self,
         classes: list[str],
         conf: float,
         model: str = "yolov8s-worldv2.pt",
-    ) -> None:  # pragma: no cover - loads model weights
+    ) -> None:
         from ultralytics import YOLOWorld  # noqa: PLC0415
 
         self._model = YOLOWorld(model)
