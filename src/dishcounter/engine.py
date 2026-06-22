@@ -10,14 +10,13 @@ from collections.abc import Callable
 import numpy as np
 
 from dishcounter.config import Config
-from dishcounter.dish_detector import DishDetector
 from dishcounter.domain import WashEvent
-from dishcounter.fusion import FusionEngine
 from dishcounter.gesture import recognize_gesture
 from dishcounter.session import SessionController
 from dishcounter.state import SharedState
 from dishcounter.store import CountStore
 from dishcounter.tracker import IouTracker
+from dishcounter.washcycle import WashCycleEngine
 
 
 def encode_jpeg(frame: np.ndarray) -> bytes:
@@ -27,21 +26,17 @@ def encode_jpeg(frame: np.ndarray) -> bytes:
     return buf.tobytes() if ok else b""
 
 
-def annotate(frame: np.ndarray, config: Config, hands, dishes,
-             active_washer, gesture) -> np.ndarray:
+def annotate(frame: np.ndarray, config: Config, hands, active_washer, gesture
+             ) -> np.ndarray:
     import cv2  # noqa: PLC0415
 
     out = frame.copy()
     z = config.sink_zone
     cv2.rectangle(out, (z.x1, z.y1), (z.x2, z.y2), (255, 0, 0), 2)
-    for dish in dishes:
-        x1, y1, x2, y2 = dish.bbox
-        cv2.rectangle(out, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(out, dish.label, (x1, max(0, y1 - 4)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
     for hand in hands:
         x1, y1, x2, y2 = hand.bbox
-        cv2.rectangle(out, (x1, y1), (x2, y2), (0, 255, 255), 1)
+        color = (0, 255, 0) if z.contains(hand.centroid) else (0, 165, 255)
+        cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
     if active_washer:
         banner, color = f"Session: {active_washer}", (0, 255, 0)
     else:
@@ -58,7 +53,6 @@ class Engine:
         self,
         camera,
         detector,
-        dish_detector: DishDetector,
         config: Config,
         store: CountStore,
         state: SharedState,
@@ -68,7 +62,6 @@ class Engine:
     ) -> None:
         self._camera = camera
         self._detector = detector
-        self._dish_detector = dish_detector
         self._config = config
         self._store = store
         self._state = state
@@ -78,13 +71,12 @@ class Engine:
         self._running = False
 
         t = config.thresholds
-        self._hand_tracker = IouTracker(iou_threshold=t.iou_match)
-        self._dish_tracker = IouTracker(
+        self._hand_tracker = IouTracker(
             iou_threshold=t.iou_match, coast_seconds=t.track_coast
         )
         self._session = SessionController(hold_seconds=t.gesture_hold)
-        self._fusion = FusionEngine(
-            config.sink_zone, exit_grace=t.exit_grace, cooldown=t.cooldown
+        self._counter = WashCycleEngine(
+            config.sink_zone, min_wash=t.min_wash, cooldown=t.cooldown
         )
 
     @staticmethod
@@ -97,13 +89,12 @@ class Engine:
 
     def process_frame(self, frame: np.ndarray, now: float) -> list[WashEvent]:
         hands = self._hand_tracker.update(self._detector.detect(frame), now)
-        dishes = self._dish_tracker.update(self._dish_detector.detect(frame), now)
         gesture = self._resolve_gesture(hands)
         active = self._session.update(gesture, now)
-        events = self._fusion.process(dishes, now, active)
+        events = self._counter.process(hands, now, active)
         for event in events:
             self._store.record(event)
-        annotated = self._annotate(frame, self._config, hands, dishes, active, gesture)
+        annotated = self._annotate(frame, self._config, hands, active, gesture)
         self._state.publish(
             self._encode(annotated), self._store.totals(now), camera_online=True
         )

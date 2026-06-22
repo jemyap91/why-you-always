@@ -1,7 +1,6 @@
 from dishcounter.camera import FakeCamera
 from dishcounter.detector import FakeHandDetector
-from dishcounter.dish_detector import FakeDishDetector
-from dishcounter.domain import Dish, Hand
+from dishcounter.domain import Hand
 from dishcounter.engine import Engine
 from dishcounter.state import SharedState
 from dishcounter.store import CountStore
@@ -18,12 +17,9 @@ def _landmarks(extended):
     return pts
 
 
-def _hand(extended):
-    return Hand(id=None, bbox=(150, 150, 190, 190), landmarks=_landmarks(extended))
-
-
-def _dish(cx):
-    return Dish(id=None, bbox=(cx - 20, 40, cx + 20, 60), label="plate", confidence=0.9)
+def _hand(cx, cy, extended):
+    return Hand(id=None, bbox=(cx - 15, cy - 15, cx + 15, cy + 15),
+                landmarks=_landmarks(extended))
 
 
 def _fake_clock(times):
@@ -31,12 +27,11 @@ def _fake_clock(times):
     return lambda: next(it)
 
 
-def _engine(sample_config, hand_script, dish_script, frames, times):
+def _engine(cfg, hand_script, frames, times):
     return Engine(
         FakeCamera(frames),
         FakeHandDetector(hand_script),
-        FakeDishDetector(dish_script),
-        sample_config,
+        cfg,
         CountStore(":memory:"),
         SharedState(),
         clock=_fake_clock(times),
@@ -44,27 +39,26 @@ def _engine(sample_config, hand_script, dish_script, frames, times):
     )
 
 
-def test_session_started_with_one_finger_counts_dish_for_you(sample_config, blank_frame):
-    one = _hand({"index"})
+def test_gesture_session_then_wash_counts_one_for_you(sample_config, blank_frame):
+    one = _hand(150, 150, {"index"})                          # gesture, outside sink
+    wash = _hand(50, 50, {"index", "middle", "ring"})         # 'other', in sink
     engine = _engine(
         sample_config,
-        # hold 'one' across two frames to clear the 1.0s gesture_hold, then idle.
-        hand_script=[[one], [one], [one], []],
-        dish_script=[[], [], [_dish(50)], []],   # dish appears in sink once session active
-        frames=[blank_frame] * 4,
-        times=[0.0, 1.0, 1.2, 3.5],
+        hand_script=[[one], [one], [wash], [wash], []],
+        frames=[blank_frame] * 5,
+        times=[0.0, 1.0, 1.5, 4.6, 8.0],
     )
-    engine.run()  # FakeCamera exhausts after 4 frames
-    assert engine._store.totals(3.5)["all_time"] == {"You": 1, "Wife": 0}
+    engine.run()  # FakeCamera exhausts after 5 frames
+    assert engine._store.totals(8.0)["all_time"] == {"You": 1, "Wife": 0}
 
 
-def test_dish_washed_with_no_session_is_not_counted(sample_config, blank_frame):
+def test_wash_without_a_session_counts_nothing(sample_config, blank_frame):
+    wash = _hand(50, 50, {"index", "middle", "ring"})
     engine = _engine(
         sample_config,
-        hand_script=[[], []],
-        dish_script=[[_dish(50)], []],
-        frames=[blank_frame, blank_frame],
-        times=[0.0, 2.0],
+        hand_script=[[wash], [wash], []],
+        frames=[blank_frame] * 3,
+        times=[0.0, 3.5, 6.0],
     )
     engine.run()
-    assert engine._store.totals(2.0)["all_time"] == {"You": 0, "Wife": 0}
+    assert engine._store.totals(6.0)["all_time"] == {"You": 0, "Wife": 0}

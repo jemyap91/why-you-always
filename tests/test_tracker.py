@@ -1,4 +1,4 @@
-from dishcounter.domain import Dish, Hand
+from dishcounter.domain import Hand
 from dishcounter.tracker import HandTracker, IouTracker, iou
 
 
@@ -42,23 +42,10 @@ def test_tracker_does_not_assign_one_track_to_two_hands():
     assert len({h.id for h in out}) == 2  # distinct ids
 
 
-def test_tracker_assigns_stable_ids_to_dishes():
-    tracker = IouTracker(iou_threshold=0.3)
-    d1 = Dish(id=None, bbox=(0, 0, 40, 40), label="plate", confidence=0.9)
-    [tracked] = tracker.update([d1])
-    first_id = tracked.id
-    # Next frame: heavily-overlapping box keeps the same id.
-    d2 = Dish(id=None, bbox=(5, 5, 45, 45), label="plate", confidence=0.9)
-    [tracked2] = tracker.update([d2])
-    assert tracked2.id == first_id
-
-
 def test_coasting_reemits_lost_track_then_drops_it():
-    from dishcounter.domain import Dish
-
     tr = IouTracker(iou_threshold=0.3, coast_seconds=2.0)
-    d = Dish(id=None, bbox=(0, 0, 40, 40), label="plate", confidence=0.9)
-    [t0] = tr.update([d], now=0.0)
+    h = Hand(id=None, bbox=(0, 0, 40, 40))
+    [t0] = tr.update([h], now=0.0)
     first = t0.id
     # Missed frame within the coast window -> the track is re-emitted (ghost).
     coasted = tr.update([], now=1.0)
@@ -70,19 +57,15 @@ def test_coasting_reemits_lost_track_then_drops_it():
 
 
 def test_coasting_reassociates_returning_detection_to_same_id():
-    from dishcounter.domain import Dish
-
     tr = IouTracker(iou_threshold=0.3, coast_seconds=2.0)
-    [a] = tr.update([Dish(id=None, bbox=(0, 0, 40, 40), label="p", confidence=0.9)], now=0.0)
+    [a] = tr.update([Hand(id=None, bbox=(0, 0, 40, 40))], now=0.0)
     first = a.id
     tr.update([], now=1.0)  # coasting (no detection this frame)
-    [b] = tr.update([Dish(id=None, bbox=(5, 5, 45, 45), label="p", confidence=0.9)], now=1.5)
+    [b] = tr.update([Hand(id=None, bbox=(5, 5, 45, 45))], now=1.5)
     assert b.id == first  # returning detection re-uses the coasted id
 
 
 def test_no_coasting_by_default_drops_immediately():
-    from dishcounter.domain import Dish
-
     tr = IouTracker(iou_threshold=0.3)  # coast_seconds defaults to 0
-    tr.update([Dish(id=None, bbox=(0, 0, 40, 40), label="p", confidence=0.9)], now=0.0)
+    tr.update([Hand(id=None, bbox=(0, 0, 40, 40))], now=0.0)
     assert tr.update([], now=0.5) == []  # dropped immediately, no ghost
