@@ -45,9 +45,10 @@ def run_calibration(
         if frame is None:
             continue
         h, w = frame.shape[:2]
-        cv2.rectangle(frame, (w // 2 - 30, h // 2 - 30), (w // 2 + 30, h // 2 + 30),
+        display = frame.copy()
+        cv2.rectangle(display, (w // 2 - 30, h // 2 - 30), (w // 2 + 30, h // 2 + 30),
                       (0, 255, 0), 2)
-        cv2.imshow("calibrate - skin", frame)
+        cv2.imshow("calibrate - skin", display)
         key = cv2.waitKey(1) & 0xFF
         if key == ord("y"):
             profiles["You"] = profile_from_region(_sample_center_region(frame))
