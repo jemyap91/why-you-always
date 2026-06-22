@@ -33,7 +33,7 @@ def _engine(sample_config, hand_script, dish_script, frames, times):
         sample_config,
         CountStore(":memory:"),
         SharedState(),
-        clock=_fake_clock(times),
+        clock=_fake_clock(times) if times else (lambda: 0.0),
         jpeg_encoder=lambda frame: b"jpeg",
     )
 
@@ -69,3 +69,26 @@ def test_process_frame_publishes_counts(sample_config, blank_frame):
     events = engine.process_frame(blank_frame, now=2.0)  # dish gone -> fire
     assert len(events) == 1
     assert events[0].person == "Wife"
+
+
+def test_today_tally_correct_with_epoch_timestamps(sample_config, blank_frame):
+    # Regression: events must carry epoch wall-clock timestamps so CountStore's
+    # "today" day-bounds (datetime.fromtimestamp) are meaningful. A monotonic
+    # clock would bucket events against a nonsense calendar day.
+    from datetime import datetime
+
+    t0 = datetime(2026, 6, 22, 12, 0, 0).timestamp()
+    engine = _engine(
+        sample_config,
+        hand_script=[[_hand(50, RED)], []],
+        dish_script=[[_dish(50)], []],
+        frames=[],
+        times=[],
+    )
+    engine.process_frame(blank_frame, now=t0)            # dish in sink -> lock You
+    events = engine.process_frame(blank_frame, now=t0 + 2.0)  # dish gone -> fire You
+    assert len(events) == 1
+    assert events[0].timestamp >= 1_000_000_000  # epoch, not monotonic
+    totals = engine._store.totals(t0 + 2.0)
+    assert totals["today"] == {"You": 1, "Wife": 0}
+    assert totals["all_time"] == {"You": 1, "Wife": 0}
