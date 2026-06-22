@@ -4,6 +4,28 @@ from dishcounter.domain import WashEvent
 from dishcounter.store import CountStore
 
 
+def test_store_usable_from_a_thread_other_than_the_one_that_created_it():
+    """The store is built on the main thread but driven by the engine thread."""
+    import threading
+
+    store = CountStore(":memory:")
+    now = _ts(2026, 6, 22)
+    errors: list[Exception] = []
+
+    def use_store() -> None:
+        try:
+            store.record(WashEvent("You", now, 0.9, 1))
+            store.totals(now)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    t = threading.Thread(target=use_store)
+    t.start()
+    t.join()
+
+    assert errors == []
+
+
 def _ts(y, mo, d, h=12):
     return datetime(y, mo, d, h, 0, 0).timestamp()
 

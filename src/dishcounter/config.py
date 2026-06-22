@@ -49,7 +49,6 @@ class Thresholds(BaseModel):
 class Config(BaseModel):
     camera_index: int
     sink_zone: Zone
-    drying_zone: Zone
     you_profile: SkinProfile
     wife_profile: SkinProfile
     dish_classes: list[str] = DEFAULT_DISH_CLASSES

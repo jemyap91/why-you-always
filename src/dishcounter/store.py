@@ -22,7 +22,11 @@ CREATE TABLE IF NOT EXISTS events (
 
 class CountStore:
     def __init__(self, db_path: str | Path) -> None:
-        self._conn = sqlite3.connect(str(db_path))
+        # The store is constructed on the main thread but driven from the engine
+        # thread; only that one thread ever touches it, so disabling the
+        # same-thread guard is safe (access is already serialized to a single
+        # consumer; the web layer reads through SharedState, not the store).
+        self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.execute(_SCHEMA)
         self._conn.commit()
 

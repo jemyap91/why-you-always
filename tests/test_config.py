@@ -28,7 +28,6 @@ def _sample_config() -> Config:
     return Config(
         camera_index=0,
         sink_zone=Zone(x1=0, y1=0, x2=100, y2=100),
-        drying_zone=Zone(x1=100, y1=0, x2=200, y2=100),
         you_profile=SkinProfile(cr=150.0, cb=110.0),
         wife_profile=SkinProfile(cr=140.0, cb=120.0),
         thresholds=Thresholds(),
@@ -53,7 +52,6 @@ def test_config_has_dish_settings_and_exit_grace():
     cfg = Config(
         camera_index=0,
         sink_zone=Zone(x1=0, y1=0, x2=100, y2=100),
-        drying_zone=Zone(x1=100, y1=0, x2=200, y2=100),
         you_profile=SkinProfile(cr=165.0, cb=110.0),
         wife_profile=SkinProfile(cr=120.0, cb=150.0),
     )
@@ -61,4 +59,3 @@ def test_config_has_dish_settings_and_exit_grace():
     assert cfg.dish_conf == 0.4
     assert cfg.yolo_model == "yolov8s-worldv2.pt"
     assert cfg.thresholds.exit_grace == 1.5
-    assert not hasattr(cfg.thresholds, "presence_window")

@@ -1,0 +1,8 @@
+opencv-python>=4.9
+mediapipe>=0.10
+numpy>=1.26
+fastapi>=0.110
+uvicorn>=0.29
+websockets>=12
+pydantic>=2.6
+pyyaml>=6.0
