@@ -11,7 +11,7 @@ import numpy as np
 
 from dishcounter.config import Config
 from dishcounter.dish_detector import DishDetector
-from dishcounter.domain import WashEvent
+from dishcounter.domain import WashEvent, median_chroma
 from dishcounter.fusion import FusionEngine
 from dishcounter.identity import IdentityClassifier
 from dishcounter.state import SharedState
@@ -26,20 +26,32 @@ def encode_jpeg(frame: np.ndarray) -> bytes:
     return buf.tobytes() if ok else b""
 
 
-def annotate(frame: np.ndarray, config: Config, hands, dishes) -> np.ndarray:
+def annotate(frame: np.ndarray, config: Config, hands, dishes, identity=None
+             ) -> np.ndarray:
     import cv2  # noqa: PLC0415
 
     out = frame.copy()
     z = config.sink_zone
     cv2.rectangle(out, (z.x1, z.y1), (z.x2, z.y2), (255, 0, 0), 2)
-    for hand in hands:
-        x1, y1, x2, y2 = hand.bbox
-        cv2.rectangle(out, (x1, y1), (x2, y2), (0, 255, 255), 1)
     for dish in dishes:
         x1, y1, x2, y2 = dish.bbox
         cv2.rectangle(out, (x1, y1), (x2, y2), (0, 255, 0), 2)
         cv2.putText(out, dish.label, (x1, max(0, y1 - 4)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+    for hand in hands:
+        x1, y1, x2, y2 = hand.bbox
+        label, conf = identity.classify(hand) if identity else ("hand", 0.0)
+        identified = label in ("You", "Wife")
+        color = (0, 255, 0) if identified else (0, 165, 255)  # green vs amber
+        cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
+        text = f"{label} {conf:.2f}"
+        if hand.region_pixels is not None and len(hand.region_pixels):
+            cr, cb = median_chroma(hand.region_pixels)
+            text += f"  cr{cr:.0f} cb{cb:.0f}"
+        cv2.putText(out, text, (x1, max(14, y1 - 6)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+    hud = f"hands:{len(hands)}  dishes:{len(dishes)}"
+    cv2.putText(out, hud, (8, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
     return out
 
 
@@ -86,7 +98,7 @@ class Engine:
         events = self._fusion.process(hands, dishes, now)
         for event in events:
             self._store.record(event)
-        annotated = self._annotate(frame, self._config, hands, dishes)
+        annotated = self._annotate(frame, self._config, hands, dishes, self._identity)
         self._state.publish(
             self._encode(annotated), self._store.totals(now), camera_online=True
         )
