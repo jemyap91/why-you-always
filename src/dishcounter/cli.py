@@ -57,13 +57,10 @@ def _serve(config: Config, db: str, host: str, port: int) -> None:  # pragma: no
     from dishcounter.state import SharedState  # noqa: PLC0415
     from dishcounter.store import CountStore  # noqa: PLC0415
 
-    from dishcounter.dish_detector import YoloWorldDishDetector  # noqa: PLC0415
-
     state = SharedState()
     engine = Engine(
         Camera(config.camera_index),
         MediaPipeHandDetector(),
-        YoloWorldDishDetector(config.dish_classes, config.dish_conf, config.yolo_model),
         config,
         CountStore(db),
         state,
