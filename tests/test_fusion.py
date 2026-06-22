@@ -74,3 +74,16 @@ def test_reappearing_dish_with_new_id_counts_again():
     eng.process([_hand(50, RED, 2)], [_dish(50, 2)], now=6.0)  # new dish id
     second = eng.process([], [], now=8.0)              # past cooldown -> fires
     assert len(first) == 1 and len(second) == 1
+
+
+def test_dish_gone_exactly_at_grace_does_not_fire_but_just_past_does():
+    eng = FusionEngine(SINK, _identity(), exit_grace=1.5, cooldown=3.0)
+    # Frame 1 at now=0.0: process one hand (RED, near dish) and one dish in sink
+    eng.process([_hand(50, RED, 1)], [_dish(50, 1)], now=0.0)
+    # Frame 2 at now=1.5 (gap == exit_grace exactly): process empty hands and dishes
+    events_at_boundary = eng.process([], [], now=1.5)
+    assert events_at_boundary == []  # NO fire at exact boundary
+    # Frame 3 at now=1.6 (gap now strictly > exit_grace): process empty hands and dishes
+    events_past_boundary = eng.process([], [], now=1.6)
+    assert len(events_past_boundary) == 1  # fires just past boundary
+    assert events_past_boundary[0].person == "You"
