@@ -1,9 +1,7 @@
-"""Greedy IoU tracker: assigns stable integer ids to hands across frames so
-the ZoneEventEngine can reason about 'the same hand' over time."""
+"""Greedy IoU tracker: assigns stable integer ids to any boxed object across
+frames so downstream logic can reason about 'the same object' over time."""
 
 from __future__ import annotations
-
-from dishcounter.domain import Hand
 
 Box = tuple[int, int, int, int]
 
@@ -23,40 +21,43 @@ def iou(a: Box, b: Box) -> float:
     return inter / union if union else 0.0
 
 
-class HandTracker:
+class IouTracker:
     def __init__(self, iou_threshold: float = 0.3) -> None:
         self._iou_threshold = iou_threshold
         self._next_id = 0
         self._tracks: dict[int, Box] = {}  # id -> last bbox
 
-    def update(self, hands: list[Hand]) -> list[Hand]:
+    def update(self, items: list) -> list:
         unmatched_tracks = dict(self._tracks)
         new_tracks: dict[int, Box] = {}
 
-        # Greedy: best (hand, track) IoU pairs first.
+        # Greedy: best (item, track) IoU pairs first.
         candidates = [
-            (iou(h.bbox, box), idx, tid)
-            for idx, h in enumerate(hands)
+            (iou(it.bbox, box), idx, tid)
+            for idx, it in enumerate(items)
             for tid, box in unmatched_tracks.items()
         ]
         candidates.sort(reverse=True)
 
-        assigned_hand: dict[int, int] = {}  # hand idx -> track id
+        assigned: dict[int, int] = {}  # item idx -> track id
         for score, idx, tid in candidates:
             if score < self._iou_threshold:
                 break
-            if idx in assigned_hand or tid not in unmatched_tracks:
+            if idx in assigned or tid not in unmatched_tracks:
                 continue
-            assigned_hand[idx] = tid
+            assigned[idx] = tid
             del unmatched_tracks[tid]
 
-        for idx, hand in enumerate(hands):
-            if idx in assigned_hand:
-                hand.id = assigned_hand[idx]
+        for idx, item in enumerate(items):
+            if idx in assigned:
+                item.id = assigned[idx]
             else:
-                hand.id = self._next_id
+                item.id = self._next_id
                 self._next_id += 1
-            new_tracks[hand.id] = hand.bbox
+            new_tracks[item.id] = item.bbox
 
         self._tracks = new_tracks
-        return hands
+        return items
+
+
+HandTracker = IouTracker  # back-compat: hands are just boxed objects
