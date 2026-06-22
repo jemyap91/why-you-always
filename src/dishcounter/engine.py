@@ -11,10 +11,10 @@ import numpy as np
 
 from dishcounter.config import Config
 from dishcounter.dish_detector import DishDetector
-from dishcounter.domain import WashEvent, median_chroma
+from dishcounter.domain import WashEvent
 from dishcounter.fusion import FusionEngine
-from dishcounter.identity import IdentityClassifier
-from dishcounter.ring import ring_metrics
+from dishcounter.gesture import recognize_gesture
+from dishcounter.session import SessionController
 from dishcounter.state import SharedState
 from dishcounter.store import CountStore
 from dishcounter.tracker import IouTracker
@@ -27,8 +27,8 @@ def encode_jpeg(frame: np.ndarray) -> bytes:
     return buf.tobytes() if ok else b""
 
 
-def annotate(frame: np.ndarray, config: Config, hands, dishes, identity=None
-             ) -> np.ndarray:
+def annotate(frame: np.ndarray, config: Config, hands, dishes,
+             active_washer, gesture) -> np.ndarray:
     import cv2  # noqa: PLC0415
 
     out = frame.copy()
@@ -41,24 +41,15 @@ def annotate(frame: np.ndarray, config: Config, hands, dishes, identity=None
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
     for hand in hands:
         x1, y1, x2, y2 = hand.bbox
-        label, conf = identity.classify(hand) if identity else ("hand", 0.0)
-        identified = label in ("You", "Wife")
-        color = (0, 255, 0) if identified else (0, 165, 255)  # green vs amber
-        cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
-        text = f"{label} {conf:.2f}"
-        if hand.region_pixels is not None and len(hand.region_pixels):
-            cr, cb = median_chroma(hand.region_pixels)
-            text += f"  cr{cr:.0f} cb{cb:.0f}"
-        cv2.putText(out, text, (x1, max(14, y1 - 6)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-        rm = ring_metrics(frame, hand)
-        if rm is not None:
-            mpct, rcr = rm
-            cv2.putText(out, f"ring metal{mpct:.0f}% cr{rcr:.0f}",
-                        (x1, min(out.shape[0] - 4, y2 + 20)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
-    hud = f"hands:{len(hands)}  dishes:{len(dishes)}"
-    cv2.putText(out, hud, (8, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+        cv2.rectangle(out, (x1, y1), (x2, y2), (0, 255, 255), 1)
+    if active_washer:
+        banner, color = f"Session: {active_washer}", (0, 255, 0)
+    else:
+        banner = "Session: none - show 1 finger (You) / 2 (Wife)"
+        color = (0, 165, 255)
+    cv2.putText(out, banner, (8, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+    cv2.putText(out, f"gesture: {gesture}", (8, 60),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
     return out
 
 
@@ -89,23 +80,28 @@ class Engine:
         t = config.thresholds
         self._hand_tracker = IouTracker(iou_threshold=t.iou_match)
         self._dish_tracker = IouTracker(iou_threshold=t.iou_match)
-        self._identity = IdentityClassifier(
-            config.you_profile, config.wife_profile, max_distance=t.identity_distance
-        )
+        self._session = SessionController(hold_seconds=t.gesture_hold)
         self._fusion = FusionEngine(
-            config.sink_zone,
-            self._identity,
-            exit_grace=t.exit_grace,
-            cooldown=t.cooldown,
+            config.sink_zone, exit_grace=t.exit_grace, cooldown=t.cooldown
         )
+
+    @staticmethod
+    def _resolve_gesture(hands) -> str:
+        for hand in hands:
+            g = recognize_gesture(hand)
+            if g in ("one", "two", "fist"):
+                return g
+        return "other"
 
     def process_frame(self, frame: np.ndarray, now: float) -> list[WashEvent]:
         hands = self._hand_tracker.update(self._detector.detect(frame))
         dishes = self._dish_tracker.update(self._dish_detector.detect(frame))
-        events = self._fusion.process(hands, dishes, now)
+        gesture = self._resolve_gesture(hands)
+        active = self._session.update(gesture, now)
+        events = self._fusion.process(dishes, now, active)
         for event in events:
             self._store.record(event)
-        annotated = self._annotate(frame, self._config, hands, dishes, self._identity)
+        annotated = self._annotate(frame, self._config, hands, dishes, active, gesture)
         self._state.publish(
             self._encode(annotated), self._store.totals(now), camera_online=True
         )

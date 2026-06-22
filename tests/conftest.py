@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from dishcounter.config import Config, SkinProfile, Thresholds, Zone
+from dishcounter.config import Config, Thresholds, Zone
 
 
 @pytest.fixture
@@ -9,9 +9,7 @@ def sample_config() -> Config:
     return Config(
         camera_index=0,
         sink_zone=Zone(x1=0, y1=0, x2=100, y2=100),
-        you_profile=SkinProfile(cr=165.0, cb=110.0),
-        wife_profile=SkinProfile(cr=120.0, cb=150.0),
-        thresholds=Thresholds(identity_distance=60.0),
+        thresholds=Thresholds(gesture_hold=1.0),
     )
 
 
