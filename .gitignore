@@ -10,5 +10,7 @@ dishcounter.db
 build/
 dist/
 
-# MediaPipe / model weights are downloaded on first run, never committed
+# MediaPipe / YOLO model weights are downloaded on first run, never committed
 *.task
+*.pt
+weights/
