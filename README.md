@@ -90,9 +90,11 @@ lighting changes a lot.
 .venv/bin/dishcounter run
 ```
 
-On first run, the YOLO-World weights (`yolov8s-worldv2.pt`, ~25 MB) download
-automatically. The dishes the detector looks for are configurable in `config.yaml`
-(`dish_classes`).
+On **first run**, YOLO-World downloads its weights plus a CLIP text-encoder for the
+open-vocabulary prompts (**~340 MB total**), and Ultralytics may auto-install a couple
+of small extras (`clip`, `ftfy`) — you'll see a one-time "restart runtime" notice that
+you can ignore. Subsequent runs start immediately. The dishes the detector looks for
+are configurable in `config.yaml` (`dish_classes`).
 
 Then open **http://127.0.0.1:8000** in a browser. You'll see:
 
