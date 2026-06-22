@@ -71,7 +71,7 @@ class Engine:
             config.sink_zone,
             config.drying_zone,
             self._identity,
-            presence_window=t.presence_window,
+            presence_window=5.0,
             cooldown=t.cooldown,
         )
 

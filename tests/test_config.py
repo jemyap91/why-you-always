@@ -19,7 +19,7 @@ def test_zone_normalizes_inverted_corners():
 def test_thresholds_have_spec_defaults():
     t = Thresholds()
     assert t.identity_distance == 25.0
-    assert t.presence_window == 5.0
+    assert t.exit_grace == 1.5
     assert t.cooldown == 3.0
     assert t.iou_match == 0.3
 
@@ -47,3 +47,18 @@ def test_config_round_trips_through_yaml(tmp_path):
 def test_config_load_missing_file_tells_user_to_calibrate(tmp_path):
     with pytest.raises(FileNotFoundError, match="calibrate"):
         Config.load(tmp_path / "nope.yaml")
+
+
+def test_config_has_dish_settings_and_exit_grace():
+    cfg = Config(
+        camera_index=0,
+        sink_zone=Zone(x1=0, y1=0, x2=100, y2=100),
+        drying_zone=Zone(x1=100, y1=0, x2=200, y2=100),
+        you_profile=SkinProfile(cr=165.0, cb=110.0),
+        wife_profile=SkinProfile(cr=120.0, cb=150.0),
+    )
+    assert "plate" in cfg.dish_classes
+    assert cfg.dish_conf == 0.4
+    assert cfg.yolo_model == "yolov8s-worldv2.pt"
+    assert cfg.thresholds.exit_grace == 1.5
+    assert not hasattr(cfg.thresholds, "presence_window")
