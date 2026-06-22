@@ -12,7 +12,9 @@ BLUE = np.tile(np.array([220, 90, 90], dtype=np.uint8), (16, 1))  # -> Wife
 
 
 def _hand(cx, region):
-    return Hand(id=None, bbox=(cx - 5, 45, cx + 5, 55), region_pixels=region)
+    # Width-40 box so consecutive frames overlap (IoU tracking keeps the id),
+    # modelling a hand moving continuously across the sink->drying boundary.
+    return Hand(id=None, bbox=(cx - 20, 45, cx + 20, 55), region_pixels=region)
 
 
 def _fake_clock(times):
@@ -21,8 +23,10 @@ def _fake_clock(times):
 
 
 def test_full_pipeline_counts_one_wash_for_you(sample_config, blank_frame):
-    # Frame 0: hand in sink. Frame 1: same hand in drying -> one You event.
-    script = [[_hand(50, RED)], [_hand(150, RED)]]
+    # Frame 0: hand centroid at cx=95 (inside sink zone 0..100).
+    # Frame 1: hand centroid at cx=105 (inside drying zone 100..200).
+    # The width-40 boxes overlap (IoU ~0.6) so IoU tracking keeps the same id.
+    script = [[_hand(95, RED)], [_hand(105, RED)]]
     detector = FakeHandDetector(script)
     camera = FakeCamera([blank_frame, blank_frame])
     store = CountStore(":memory:")
@@ -48,7 +52,7 @@ def test_full_pipeline_counts_one_wash_for_you(sample_config, blank_frame):
 
 
 def test_process_frame_publishes_counts(sample_config, blank_frame):
-    detector = FakeHandDetector([[_hand(50, BLUE)], [_hand(150, BLUE)]])
+    detector = FakeHandDetector([[_hand(95, BLUE)], [_hand(105, BLUE)]])
     engine = Engine(
         FakeCamera([]),
         detector,

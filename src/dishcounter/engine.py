@@ -17,12 +17,6 @@ from dishcounter.store import CountStore
 from dishcounter.tracker import HandTracker
 from dishcounter.zones import ZoneEventEngine
 
-# Stable synthetic hand IDs keyed by identity label so ZoneEventEngine
-# can track zone transitions across frames even when IoU-based tracking
-# loses continuity (the same person's hand jumps across non-overlapping
-# bounding boxes between sink and drying zones).
-_IDENTITY_IDS: dict[str, int] = {"You": 0, "Wife": 1, "uncertain": 2}
-
 
 def encode_jpeg(frame: np.ndarray) -> bytes:
     import cv2  # noqa: PLC0415
@@ -82,14 +76,7 @@ class Engine:
         )
 
     def process_frame(self, frame: np.ndarray, now: float) -> list[WashEvent]:
-        raw_hands = self._detector.detect(frame)
-        hands = self._tracker.update(raw_hands)
-        # Override each hand's ID with a stable identity-based key so that
-        # ZoneEventEngine can correlate sink and drying visits even when
-        # IoU tracking loses continuity between the two zones.
-        for hand in hands:
-            label, _conf = self._identity.classify(hand)
-            hand.id = _IDENTITY_IDS[label]
+        hands = self._tracker.update(self._detector.detect(frame))
         events = self._zones.process(hands, now)
         for event in events:
             self._store.record(event)
