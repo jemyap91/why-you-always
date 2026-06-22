@@ -14,6 +14,7 @@ from dishcounter.dish_detector import DishDetector
 from dishcounter.domain import WashEvent, median_chroma
 from dishcounter.fusion import FusionEngine
 from dishcounter.identity import IdentityClassifier
+from dishcounter.ring import ring_metrics
 from dishcounter.state import SharedState
 from dishcounter.store import CountStore
 from dishcounter.tracker import IouTracker
@@ -50,6 +51,12 @@ def annotate(frame: np.ndarray, config: Config, hands, dishes, identity=None
             text += f"  cr{cr:.0f} cb{cb:.0f}"
         cv2.putText(out, text, (x1, max(14, y1 - 6)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+        rm = ring_metrics(frame, hand)
+        if rm is not None:
+            mpct, rcr = rm
+            cv2.putText(out, f"ring metal{mpct:.0f}% cr{rcr:.0f}",
+                        (x1, min(out.shape[0] - 4, y2 + 20)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
     hud = f"hands:{len(hands)}  dishes:{len(dishes)}"
     cv2.putText(out, hud, (8, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
     return out
