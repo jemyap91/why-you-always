@@ -1,6 +1,6 @@
-"""Counting rule: one wash = a hand dwells in the sink for >= min_wash seconds,
-then leaves it (out of the zone, or out of frame). Credited to the active
-session washer; a per-person cooldown collapses two-handed exits."""
+"""Counting rule: one wash = a hand dwells in the sink for >= min_wash seconds
+WITH a dish confirmed present, then leaves it. Credited to the active session
+washer; a per-person cooldown collapses two-handed exits."""
 
 from __future__ import annotations
 
@@ -14,18 +14,30 @@ from dishcounter.domain import Hand, WashEvent
 class _Visit:
     enter_time: float | None = None  # start of the current in-sink visit
     last_in_sink: float = 0.0        # last time the hand was seen in the sink
+    dish_hits: int = 0               # dish-in-sink confirmations this visit
 
 
 class WashCycleEngine:
-    def __init__(self, sink: Zone, min_wash: float = 3.0, cooldown: float = 3.0) -> None:
+    def __init__(
+        self,
+        sink: Zone,
+        min_wash: float = 3.0,
+        cooldown: float = 3.0,
+        dish_min_hits: int = 1,
+    ) -> None:
         self._sink = sink
         self._min_wash = min_wash
         self._cooldown = cooldown
+        self._dish_min_hits = dish_min_hits
         self._visits: dict[int, _Visit] = {}
         self._last_person_fire: dict[str, float] = {}
 
     def process(
-        self, hands: list[Hand], now: float, active_washer: str | None
+        self,
+        hands: list[Hand],
+        now: float,
+        active_washer: str | None,
+        dish_seen: bool = False,
     ) -> list[WashEvent]:
         present: set[int] = set()
         events: list[WashEvent] = []
@@ -38,6 +50,8 @@ class WashCycleEngine:
                 if visit.enter_time is None:
                     visit.enter_time = now
                 visit.last_in_sink = now
+                if dish_seen:
+                    visit.dish_hits += 1
             else:
                 self._close(visit, hand.id, now, active_washer, events)
 
@@ -56,8 +70,12 @@ class WashCycleEngine:
         if visit.enter_time is None:
             return
         dwell = visit.last_in_sink - visit.enter_time
+        dish_hits = visit.dish_hits
         visit.enter_time = None  # close the visit regardless of outcome
+        visit.dish_hits = 0
         if dwell < self._min_wash or active_washer not in ("You", "Wife"):
+            return
+        if dish_hits < self._dish_min_hits:
             return
         last = self._last_person_fire.get(active_washer)
         if last is not None and (now - last) < self._cooldown:
