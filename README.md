@@ -98,8 +98,9 @@ Then open **http://127.0.0.1:8000** in a browser. You'll see:
 
 **Workflow:**
 
-1. Hold **1 finger** up toward the camera for about 1 second — the banner switches to
-   `Session: You`.
+1. Hold **1 finger** up toward the camera for about 1 second — **away from the sink
+   basin** (gestures are only read outside the sink zone, so your washing hand can't
+   change the session by accident). The banner switches to `Session: You`.
 2. Wash a dish. Keep your hand in the sink for a few seconds (the default is 3 s),
    then lift the dish out and carry it away. The hand leaving the sink zone triggers
    the count.

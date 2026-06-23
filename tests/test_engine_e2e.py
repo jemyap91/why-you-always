@@ -62,3 +62,13 @@ def test_wash_without_a_session_counts_nothing(sample_config, blank_frame):
     )
     engine.run()
     assert engine._store.totals(6.0)["all_time"] == {"You": 0, "Wife": 0}
+
+
+def test_gesture_from_hand_in_sink_is_ignored(sample_config):
+    # Regression: the washing hand (inside the sink zone) must not drive the
+    # session — only a hand held OUTSIDE the sink counts as a deliberate signal.
+    engine = _engine(sample_config, hand_script=[[]], frames=[], times=[])
+    in_sink_one = _hand(50, 50, {"index"})      # 'one' but centroid in sink (0..100)
+    assert engine._resolve_gesture([in_sink_one]) == "other"
+    out_one = _hand(150, 150, {"index"})         # 'one' outside the sink
+    assert engine._resolve_gesture([out_one]) == "one"

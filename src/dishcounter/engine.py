@@ -79,11 +79,15 @@ class Engine:
             config.sink_zone, min_wash=t.min_wash, cooldown=t.cooldown
         )
 
-    @staticmethod
-    def _resolve_gesture(hands) -> str:
+    def _resolve_gesture(self, hands) -> str:
+        # Only a hand held OUTSIDE the sink zone counts as a deliberate signal;
+        # the hand actually washing (inside the zone) must not drive the session.
+        sink = self._config.sink_zone
         for hand in hands:
+            if sink.contains(hand.centroid):
+                continue
             g = recognize_gesture(hand)
-            if g in ("one", "two", "fist"):
+            if g in ("one", "two"):
                 return g
         return "other"
 
