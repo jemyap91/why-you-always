@@ -17,13 +17,23 @@ _INDEX_HTML = """<!doctype html>
  body{font-family:system-ui;background:#111;color:#eee;text-align:center}
  .board{display:flex;justify-content:center;gap:3rem;margin:1rem}
  .name{font-size:1.2rem;opacity:.7} .num{font-size:3rem;font-weight:700}
- img{max-width:90vw;border:2px solid #333;border-radius:8px}
+ #view{overflow:hidden;display:inline-block;max-width:90vw;
+       border:2px solid #333;border-radius:8px;line-height:0}
+ #feed{max-width:90vw;transform-origin:center;transition:transform .1s}
+ .zoom{margin:.5rem}
+ .zoom button{font-size:1rem;padding:.3rem .8rem;margin:0 .2rem;cursor:pointer}
  #status{color:#f55}
 </style></head>
 <body>
  <h1>Dish Counter</h1>
  <p id="status"></p>
- <img src="/stream" alt="live feed"/>
+ <div id="view"><img src="/stream" alt="live feed" id="feed"/></div>
+ <div class="zoom">
+  <button onclick="zoom(-0.5)">Zoom &minus;</button>
+  <span id="zlevel">1.0&times;</span>
+  <button onclick="zoom(0.5)">Zoom +</button>
+  <button onclick="zoomReset()">Reset</button>
+ </div>
  <div class="board">
   <div><div class="name">You</div><div class="num" id="you">0</div>
        <div id="you-all">all-time 0</div></div>
@@ -31,6 +41,16 @@ _INDEX_HTML = """<!doctype html>
        <div id="wife-all">all-time 0</div></div>
  </div>
 <script>
+ let z = 1;
+ const feed = document.getElementById('feed');
+ const zl = document.getElementById('zlevel');
+ function applyZoom(){ feed.style.transform = 'scale(' + z + ')';
+                       zl.textContent = z.toFixed(1) + '×'; }
+ function zoom(d){ z = Math.min(4, Math.max(1, Math.round((z + d) * 10) / 10));
+                   applyZoom(); }
+ function zoomReset(){ z = 1; applyZoom(); }
+ applyZoom();
+
  const ws = new WebSocket(`ws://${location.host}/ws`);
  ws.onmessage = (e) => {
    const d = JSON.parse(e.data);

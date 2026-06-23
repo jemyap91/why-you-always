@@ -11,6 +11,13 @@ def test_index_serves_html():
     assert "Dish Counter" in resp.text
 
 
+def test_index_has_zoom_controls():
+    client = TestClient(create_app(SharedState()))
+    resp = client.get("/")
+    assert "zoom(" in resp.text  # client-side zoom buttons wired up
+    assert 'id="feed"' in resp.text
+
+
 def test_counts_endpoint_reflects_state():
     state = SharedState()
     state.publish(b"x", {"today": {"You": 3, "Wife": 1}}, camera_online=True)
