@@ -1,6 +1,7 @@
 from dishcounter.camera import FakeCamera
 from dishcounter.detector import FakeHandDetector
-from dishcounter.domain import Hand
+from dishcounter.dish_detector import FakeDishDetector
+from dishcounter.domain import Dish, Hand
 from dishcounter.engine import Engine
 from dishcounter.state import SharedState
 from dishcounter.store import CountStore
@@ -27,7 +28,7 @@ def _fake_clock(times):
     return lambda: next(it)
 
 
-def _engine(cfg, hand_script, frames, times):
+def _engine(cfg, hand_script, frames, times, dish_detector=None):
     return Engine(
         FakeCamera(frames),
         FakeHandDetector(hand_script),
@@ -36,6 +37,7 @@ def _engine(cfg, hand_script, frames, times):
         SharedState(),
         clock=_fake_clock(times),
         jpeg_encoder=lambda frame: b"jpeg",
+        dish_detector=dish_detector,
     )
 
 
@@ -72,3 +74,61 @@ def test_gesture_from_hand_in_sink_is_ignored(sample_config):
     assert engine._resolve_gesture([in_sink_one]) == "other"
     out_one = _hand(150, 150, {"index"})         # 'one' outside the sink
     assert engine._resolve_gesture([out_one]) == "one"
+
+
+_DISH_IN_SINK = Dish(id=None, bbox=(40, 40, 60, 60), label="plate", confidence=0.9)
+
+
+def test_wash_with_dish_in_sink_counts_one(sample_config, blank_frame):
+    one = _hand(150, 150, {"index"})                          # gesture, outside sink
+    wash = _hand(50, 50, {"index", "middle", "ring"})         # 'other', in sink
+    engine = _engine(
+        sample_config,
+        hand_script=[[one], [one], [wash], [wash], []],
+        frames=[blank_frame] * 5,
+        times=[0.0, 1.0, 1.5, 4.6, 8.0],
+        dish_detector=FakeDishDetector([[_DISH_IN_SINK]]),  # always sees a plate
+    )
+    engine.run()
+    assert engine._store.totals(8.0)["all_time"] == {"You": 1, "Wife": 0}
+
+
+def test_same_wash_motion_without_a_dish_counts_zero(sample_config, blank_frame):
+    # Core regression: identical hand motion, but the dish detector sees nothing.
+    one = _hand(150, 150, {"index"})
+    wash = _hand(50, 50, {"index", "middle", "ring"})
+    engine = _engine(
+        sample_config,
+        hand_script=[[one], [one], [wash], [wash], []],
+        frames=[blank_frame] * 5,
+        times=[0.0, 1.0, 1.5, 4.6, 8.0],
+        dish_detector=FakeDishDetector([[]]),  # never sees a dish
+    )
+    engine.run()
+    assert engine._store.totals(8.0)["all_time"] == {"You": 0, "Wife": 0}
+
+
+def test_dish_detector_runs_only_in_sink_and_throttled(sample_config, blank_frame):
+    class _Spy:
+        def __init__(self):
+            self.calls = 0
+
+        def detect(self, frame):
+            self.calls += 1
+            return [_DISH_IN_SINK]
+
+    spy = _Spy()
+    one = _hand(150, 150, {"index"})                   # outside sink (gesture)
+    wash = _hand(50, 50, {"index", "middle", "ring"})  # in sink
+    engine = _engine(
+        sample_config,
+        hand_script=[[one], [one], [wash], [wash], [wash]],
+        frames=[blank_frame] * 5,
+        times=[0.0, 1.0, 1.2, 1.4, 2.0],
+        dish_detector=spy,
+    )
+    for now in [0.0, 1.0, 1.2, 1.4, 2.0]:
+        engine.process_frame(blank_frame, now)
+    # Not called on the two gesture frames (no hand in sink). In-sink frames at
+    # 1.2 (first), 1.4 (throttled out: <0.5s later), 2.0 (>=0.5s later) -> 2 runs.
+    assert spy.calls == 2

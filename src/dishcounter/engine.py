@@ -59,6 +59,7 @@ class Engine:
         clock: Callable[[], float] = time.time,
         jpeg_encoder: Callable[[np.ndarray], bytes] = encode_jpeg,
         annotator: Callable = annotate,
+        dish_detector=None,
     ) -> None:
         self._camera = camera
         self._detector = detector
@@ -69,14 +70,19 @@ class Engine:
         self._encode = jpeg_encoder
         self._annotate = annotator
         self._running = False
+        self._dish_detector = dish_detector
 
         t = config.thresholds
+        self._dish_interval = t.dish_interval
+        self._last_dish_run: float | None = None
         self._hand_tracker = IouTracker(
             iou_threshold=t.iou_match, coast_seconds=t.track_coast
         )
         self._session = SessionController(hold_seconds=t.gesture_hold)
+        dish_min_hits = t.dish_min_hits if dish_detector is not None else 0
         self._counter = WashCycleEngine(
-            config.sink_zone, min_wash=t.min_wash, cooldown=t.cooldown
+            config.sink_zone, min_wash=t.min_wash, cooldown=t.cooldown,
+            dish_min_hits=dish_min_hits,
         )
 
     def _resolve_gesture(self, hands) -> str:
@@ -91,11 +97,28 @@ class Engine:
                 return g
         return "other"
 
+    def _maybe_detect_dish(self, frame, hands, active, now) -> bool:
+        # Run YOLO only when a wash could be happening, throttled to dish_interval.
+        if self._dish_detector is None or active not in ("You", "Wife"):
+            return False
+        sink = self._config.sink_zone
+        if not any(h.id is not None and sink.contains(h.centroid) for h in hands):
+            return False
+        if self._last_dish_run is not None and (now - self._last_dish_run) < self._dish_interval:
+            return False
+        self._last_dish_run = now
+        try:
+            dishes = self._dish_detector.detect(frame)
+        except Exception:
+            return False
+        return any(sink.contains(d.centroid) for d in dishes)
+
     def process_frame(self, frame: np.ndarray, now: float) -> list[WashEvent]:
         hands = self._hand_tracker.update(self._detector.detect(frame), now)
         gesture = self._resolve_gesture(hands)
         active = self._session.update(gesture, now)
-        events = self._counter.process(hands, now, active)
+        dish_seen = self._maybe_detect_dish(frame, hands, active, now)
+        events = self._counter.process(hands, now, active, dish_seen)
         for event in events:
             self._store.record(event)
         annotated = self._annotate(frame, self._config, hands, active, gesture)
