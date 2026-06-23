@@ -6,7 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Zone(BaseModel):
@@ -28,12 +28,21 @@ class Thresholds(BaseModel):
     gesture_hold: float = 1.0        # seconds a gesture must be held to act
     track_coast: float = 2.0         # seconds a lost hand track is kept alive
     min_wash: float = 3.0            # seconds a hand must dwell in the sink to count
+    dish_interval: float = 0.5       # min seconds between dish-detector runs
+    dish_min_hits: int = 1           # dish-in-sink confirmations to validate a wash
 
 
 class Config(BaseModel):
     camera_index: int
     sink_zone: Zone
     thresholds: Thresholds = Thresholds()
+    dish_classes: list[str] = Field(
+        default_factory=lambda: [
+            "plate", "bowl", "cup", "glass", "mug", "fork", "knife", "spoon",
+        ]
+    )
+    dish_conf: float = 0.4
+    yolo_model: str = "yolov8s-worldv2.pt"
 
     @classmethod
     def load(cls, path: str | Path) -> Config:
