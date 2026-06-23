@@ -53,6 +53,7 @@ def _serve(config: Config, db: str, host: str, port: int) -> None:  # pragma: no
     from dishcounter.camera import Camera  # noqa: PLC0415
     from dishcounter.dashboard import run_server  # noqa: PLC0415
     from dishcounter.detector import MediaPipeHandDetector  # noqa: PLC0415
+    from dishcounter.dish_detector import YoloWorldDishDetector  # noqa: PLC0415
     from dishcounter.engine import Engine  # noqa: PLC0415
     from dishcounter.state import SharedState  # noqa: PLC0415
     from dishcounter.store import CountStore  # noqa: PLC0415
@@ -64,6 +65,9 @@ def _serve(config: Config, db: str, host: str, port: int) -> None:  # pragma: no
         config,
         CountStore(db),
         state,
+        dish_detector=YoloWorldDishDetector(
+            config.dish_classes, config.dish_conf, config.yolo_model
+        ),
     )
     threading.Thread(target=engine.run, daemon=True).start()
     print(f"Dashboard at http://{host}:{port}")

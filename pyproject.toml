@@ -12,6 +12,7 @@ dependencies = [
     "websockets>=12",  # WebSocket protocol backend uvicorn needs for the /ws scoreboard
     "pydantic>=2.6",
     "pyyaml>=6.0",
+    "ultralytics>=8.1",  # YOLO-World open-vocabulary dish detection (presence gate)
 ]
 
 [project.optional-dependencies]
