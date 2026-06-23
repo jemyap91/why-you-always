@@ -3,9 +3,10 @@
 A local computer-vision scoreboard that keeps a fair, hands-free tally of how many
 dishes **You** vs **Wife** wash at a shared kitchen sink, watched by a webcam.
 
-- **A wash is counted** when your hand dwells in the **sink zone** for a few seconds
-  and then **leaves** — you carry the dish away. The act of leaving the sink is the
-  counting trigger.
+- **A wash is counted** when your hand dwells in the **sink zone** for a few seconds,
+  **a dish is seen in the sink during that dwell**, and then your hand **leaves**.
+  The dish check (a webcam object detector) is what stops hand-rinsing or
+  sponge-wringing from being counted — no dish in the sink, no count.
 - **Attribution is by hand gesture** — show **1 finger** to start a *You* session,
   **2 fingers** to start a *Wife* session; **show the same number again to end** it
   (or the other number to switch). Every wash while a session is active is credited
@@ -84,6 +85,10 @@ moves.
 On first run, MediaPipe downloads its hand landmark model (~8 MB). Subsequent runs
 start immediately.
 
+The dish detector (YOLO-World) also downloads its weights on first run
+(~340MB, including the CLIP text encoder). It runs only while a session is active
+and a hand is in the sink, so it stays idle when nobody is washing.
+
 Then open **http://127.0.0.1:8000** in a browser. You'll see:
 
 - The **live camera feed** with:
@@ -150,6 +155,8 @@ dishcounter run       [--config config.yaml] [--db dishcounter.db]
 | `track_coast` | `2.0` | Seconds a lost hand track is kept alive so brief detector dropouts (suds, occlusion) don't break the dwell timer | **Raise** if the hand tracker loses the hand mid-wash and resets the dwell; **lower** if two washes in quick succession get merged into one |
 | `gesture_hold` | `1.0` | Seconds a gesture must be held before a session starts or ends | **Raise** if sessions start too easily (accidental gestures); **lower** for snappier switching |
 | `iou_match` | `0.3` | How much a hand box must overlap frame-to-frame to be treated as the same hand | Rarely needs changing |
+| `dish_interval` | `0.5` | Minimum seconds between dish-detector runs during a wash | Lower for more frequent dish checks (more CPU); raise to save CPU |
+| `dish_min_hits` | `1` | Dish-in-sink confirmations needed to count a wash; `0` disables the dish gate | Raise if you still see false counts; set `0` to count on hand activity alone |
 
 After editing, just restart `dishcounter run`.
 
