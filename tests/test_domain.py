@@ -26,3 +26,12 @@ def test_wash_event_has_source_id():
 def test_hand_has_no_region_pixels_field():
     hand = Hand(id=1, bbox=(0, 0, 10, 10))
     assert not hasattr(hand, "region_pixels")
+
+
+def test_dish_centroid_is_bbox_center():
+    from dishcounter.domain import Dish
+
+    d = Dish(id=None, bbox=(10, 20, 30, 60), label="plate", confidence=0.9)
+    assert d.centroid == (20.0, 40.0)
+    assert d.label == "plate"
+    assert d.confidence == 0.9
