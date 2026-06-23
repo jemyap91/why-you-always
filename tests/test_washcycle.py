@@ -107,3 +107,13 @@ def test_idle_out_of_sink_hands_do_not_accumulate_state():
     for i in range(50):
         eng.process([_out(i)], float(i), "You")
     assert eng._visits == {}  # no dead entries left behind
+
+
+def test_re_entry_with_dish_counts_again_after_cooldown():
+    eng = WashCycleEngine(SINK, min_wash=3.0, cooldown=3.0)
+    eng.process([_in(1)], 0.0, "You", dish_seen=True)
+    eng.process([_in(1)], 3.0, "You", dish_seen=True)
+    eng.process([], 3.5, "You")                          # first count
+    eng.process([_in(1)], 8.0, "You", dish_seen=True)    # new visit WITH a dish
+    eng.process([_in(1)], 11.0, "You", dish_seen=True)
+    assert len(eng.process([], 11.5, "You")) == 1         # counts again past cooldown
