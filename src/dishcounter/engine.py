@@ -26,8 +26,8 @@ def encode_jpeg(frame: np.ndarray) -> bytes:
     return buf.tobytes() if ok else b""
 
 
-def annotate(frame: np.ndarray, config: Config, hands, active_washer, gesture
-             ) -> np.ndarray:
+def annotate(frame: np.ndarray, config: Config, hands, active_washer, gesture,
+             dish_seen: bool = False) -> np.ndarray:
     import cv2  # noqa: PLC0415
 
     out = frame.copy()
@@ -45,6 +45,9 @@ def annotate(frame: np.ndarray, config: Config, hands, active_washer, gesture
     cv2.putText(out, banner, (8, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
     cv2.putText(out, f"gesture: {gesture}", (8, 60),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    if dish_seen:
+        cv2.putText(out, "dish detected", (8, 90), cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7, (0, 255, 0), 2)
     return out
 
 
@@ -121,7 +124,9 @@ class Engine:
         events = self._counter.process(hands, now, active, dish_seen)
         for event in events:
             self._store.record(event)
-        annotated = self._annotate(frame, self._config, hands, active, gesture)
+        annotated = self._annotate(
+            frame, self._config, hands, active, gesture, dish_seen
+        )
         self._state.publish(
             self._encode(annotated), self._store.totals(now), camera_online=True
         )
