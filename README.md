@@ -1,31 +1,33 @@
-# Dish Counter
+# Rackwash
 
 A local computer-vision scoreboard that keeps a fair, hands-free tally of how many
-dishes **You** vs **Wife** wash at a shared kitchen sink, watched by a webcam.
+dishes **You** vs **Wife** wash, watched by a webcam. It counts by **results in the
+drying rack**, not by watching hands at the sink.
 
-- **A wash is counted** when your hand dwells in the **sink zone** for a few seconds,
-  **a dish is seen in the sink during that dwell**, and then your hand **leaves**.
-  The dish check (a webcam object detector) is what stops hand-rinsing or
-  sponge-wringing from being counted — no dish in the sink, no count.
-- **Attribution is by hand gesture** — show **1 finger** to start a *You* session,
-  **2 fingers** to start a *Wife* session; **show the same number again to end** it
-  (or the other number to switch). Every wash while a session is active is credited
-  to that person. With no active session nothing is counted — safe. No face
-  recognition, no stored images.
-- **Biased toward undercounting** — when no session is active, the app records
-  nothing rather than guessing who washed a dish.
+- **Outcome-based counting.** A wash session is bracketed by a gesture (start/end).
+  At each boundary the app runs a short object-detection burst over your drying-rack
+  region(s) and counts the dishware sitting there. The **increase** across the
+  session — `dishes_at_end − dishes_at_start` — is credited to that session's washer.
+  Nothing is counted by watching hands move, so rinsing, sponge-wringing, and
+  reaching never inflate the score.
+- **Attribution is by hand gesture, inside a sign-in box.** Show **1 finger** (You)
+  or **2 fingers** (Wife) **inside a small calibrated "sign-in" box** for ~1.5s to
+  start; show the same number again to end, or the other number to switch. Gestures
+  are only read inside that box, so incidental hand poses while washing can't flip
+  the session. With no active session nothing is counted.
+- **Private by design.** The only things saved are the rack/sign-in rectangles,
+  tuning settings, and a log of count events — never any images of faces or hands.
 
-Everything runs on your machine. The only things ever saved are the sink rectangle,
-tuning settings, and a log of count events — never any pictures of faces or hands.
+> The repository also contains a legacy `dishcounter` package (an earlier
+> sink-dwell approach under `src/dishcounter/`). **Rackwash** (`rackwash/`) is the
+> current project; this README describes it.
 
 ---
 
 ## 1. Requirements
 
-- **macOS** (or Linux) with a connected **webcam** (built for a Logitech Brio, works
-  with any OpenCV-compatible camera).
-- **Python 3.12** specifically. MediaPipe (the hand detector) does not yet support
-  Python 3.13/3.14, so the project pins 3.12:
+- **macOS** (or Linux) with a connected **webcam**.
+- **Python 3.12** specifically — MediaPipe does not yet support 3.13/3.14:
 
   ```bash
   brew install python@3.12
@@ -35,108 +37,93 @@ tuning settings, and a log of count events — never any pictures of faces or ha
 
 ## 2. Setup (one time)
 
-From the repo root, create a virtual environment **using the 3.12 interpreter** and
-install the package:
+From the repo root, create a 3.12 virtual environment and install the rackwash
+package:
 
 ```bash
 "$(brew --prefix python@3.12)/bin/python3.12" -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -e ".[dev]"
+.venv/bin/python -m pip install -e "./rackwash[dev]"
 ```
 
-This downloads OpenCV and MediaPipe and installs a `dishcounter` command inside
-`.venv`. Confirm it worked:
+Confirm it worked:
 
 ```bash
-.venv/bin/dishcounter --help
+.venv/bin/rackwash --help        # shows: calibrate, run
 ```
-
-You should see the `calibrate` and `run` subcommands.
 
 ---
 
 ## 3. Calibrate (one time, re-runnable)
 
-The app needs to know where the sink is in the camera view. Run:
-
 ```bash
-.venv/bin/dishcounter calibrate
+.venv/bin/rackwash calibrate
 ```
 
-A camera window opens. **Draw the sink zone** — click-drag a rectangle around the
-**sink** area (where washing happens), then press **`Enter`** (or `Space`) to confirm.
+A camera window opens. Two things to set up:
 
-This writes **`config.yaml`** to the repo root containing only the sink rectangle and
-tuning settings — no images, no skin profiles. Re-run `calibrate` any time the camera
-moves.
+1. **Drying-rack zones.** For each rack, drag a rectangle and press **Enter**, then
+   press **`b`** if your body blocks that rack while washing, or **`a`** if it stays
+   visible. Press **Esc** (without dragging) when you've added all your racks.
+2. **Sign-in box.** Drag one more box — a small box in a **corner, away from the
+   racks and your normal hand paths**. Gestures are only read inside this box, so
+   your washing/reaching hands can't change the session by accident. Press **Esc**
+   to skip it (gestures then register from *any* hand — the old, flip-prone
+   behavior).
 
-> Tip: make the sink zone snug around the basin, not the whole counter. Leaving the
-> sink zone is what triggers the count, so a tight boundary gives you the cleanest
-> signal.
+This writes **`config.yaml`** (rectangles + tuning only — no images). Re-run any
+time the camera moves.
+
+> Tip: put the sign-in box somewhere you can reach with one hand without leaning
+> over the sink, and where you don't normally wave your hands.
 
 ---
 
 ## 4. Run
 
 ```bash
-.venv/bin/dishcounter run
+.venv/bin/rackwash run        # then open http://127.0.0.1:8000
 ```
 
-On first run, MediaPipe downloads its hand landmark model (~8 MB). Subsequent runs
-start immediately.
+On first run, MediaPipe (hand landmarks) and YOLO-World (dishware) download their
+weights (a few hundred MB total). YOLO runs only in **short bursts at session
+boundaries**, so it's idle the rest of the time.
 
-The dish detector (YOLO-World) also downloads its weights on first run
-(~340MB, including the CLIP text encoder). It runs only while a session is active
-and a hand is in the sink, so it stays idle when nobody is washing.
+The dashboard shows:
 
-Then open **http://127.0.0.1:8000** in a browser. You'll see:
-
-- The **live camera feed** with:
-  - The **sink zone** drawn in blue.
-  - A bounding box around each detected **hand** — **green** when the hand is inside
-    the sink zone, **amber** otherwise.
-  - A **session banner** at the top of the frame (`Session: You` / `Session: Wife` /
-    `Session: none - show 1 (You) / 2 (Wife), show again to end`) and a
-    `gesture: <name>` label below it.
-- A **scoreboard**: *You* vs *Wife*, showing **today** and **all-time** totals.
-- A **"camera offline"** notice if the webcam disconnects (the app keeps retrying).
+- The **live feed** with rack zones (orange = body-blocked, blue = always-visible),
+  the **sign-in box** (yellow), hand boxes, a **session banner**
+  (`Session: You` / `Wife` / `none — show 1 (You) / 2 (Wife)`), and the current
+  `gesture:` reading. A **zoom +/−/Reset** control magnifies the preview.
+- A **scoreboard**: *You* vs *Wife*, **today** and **all-time**.
 
 **Workflow:**
 
-1. Hold **1 finger** up toward the camera for about 1 second — **away from the sink
-   basin** (gestures are only read outside the sink zone, so your washing hand can't
-   change the session by accident). The banner switches to `Session: You`.
-2. Wash a dish. Keep your hand in the sink for a few seconds (the default is 3 s),
-   then lift the dish out and carry it away. The hand leaving the sink zone triggers
-   the count.
-3. Repeat for each dish. When you're done, hold **1 finger** again for about 1
-   second — the session ends and counting stops until the next gesture.
-4. The next person holds **2 fingers** to start a *Wife* session, then **2 fingers**
-   again to end it (or just show 1/2 to switch directly).
+1. Hold **1 finger inside the sign-in box** for ~1.5s — the banner switches to
+   `Session: You`.
+2. Wash and load your racks as normal.
+3. When you're done, hold **1 finger in the box** again to end — the app counts the
+   dishware added to the racks during your session and credits it to You.
+4. The next person holds **2 fingers in the box** to start a *Wife* session, then
+   **2 fingers** again to end (or show 1/2 to switch directly).
 
-With no active session nothing is counted — so handing off or walking away is safe.
-
-Counts are saved to **`dishcounter.db`** (a local SQLite file) and persist across
-restarts. Leave the command running while you do dishes; stop it with `Ctrl-C`.
-
-If you run `dishcounter run` before calibrating, it stops with a clear message telling
-you to run `calibrate` first.
+Counts persist in **`rackwash.db`** across restarts. Stop with `Ctrl-C`.
 
 ---
 
 ## 5. Command reference
 
 ```
-dishcounter calibrate [--config config.yaml] [--camera 0]
-dishcounter run       [--config config.yaml] [--db dishcounter.db]
-                      [--host 127.0.0.1] [--port 8000]
+rackwash calibrate [--config config.yaml] [--camera 0]
+rackwash run       [--config config.yaml] [--db rackwash.db]
+                   [--host 127.0.0.1] [--port 8000]
 ```
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--config` | `config.yaml` | Where calibration is read/written |
 | `--camera` | `0` | Webcam index (try `1`, `2`… if you have several) |
-| `--db` | `dishcounter.db` | SQLite file for the event log |
+| `--db` | `rackwash.db` | SQLite file for the event log |
 | `--host` | `127.0.0.1` | Dashboard bind address |
 | `--port` | `8000` | Dashboard port |
 
@@ -144,64 +131,47 @@ dishcounter run       [--config config.yaml] [--db dishcounter.db]
 
 ## 6. Tuning (optional)
 
-`config.yaml` holds a `thresholds` block you can edit by hand.
+`config.yaml` holds a `thresholds` block plus dish-detector settings.
 
-**`thresholds` block:**
+**`thresholds`:**
 
 | Setting | Default | What it does | When to change |
 |---|---|---|---|
-| `min_wash` | `3.0` | Seconds a hand must dwell inside the sink zone before the exit is counted as a wash | **Raise** if brief hand-passes get counted; **lower** if real washes are missed because you're quick |
-| `cooldown` | `3.0` | Minimum seconds before the same **person** can be counted again | **Raise** if a single wash is being double-counted |
-| `track_coast` | `2.0` | Seconds a lost hand track is kept alive so brief detector dropouts (suds, occlusion) don't break the dwell timer | **Raise** if the hand tracker loses the hand mid-wash and resets the dwell; **lower** if two washes in quick succession get merged into one |
-| `gesture_hold` | `1.0` | Seconds a gesture must be held before a session starts or ends | **Raise** if sessions start too easily (accidental gestures); **lower** for snappier switching |
-| `iou_match` | `0.3` | How much a hand box must overlap frame-to-frame to be treated as the same hand | Rarely needs changing |
-| `dish_interval` | `0.5` | Minimum seconds between dish-detector runs during a wash | Lower for more frequent dish checks (more CPU); raise to save CPU |
-| `dish_min_hits` | `1` | Dish-in-sink confirmations needed to count a wash; `0` disables the dish gate | Raise if you still see false counts; set `0` to count on hand activity alone |
+| `gesture_hold` | `1.5` | Seconds a gesture must be held (inside the sign-in box) before it acts | **Raise** if sessions start too easily; **lower** for snappier switching |
+| `track_coast` | `2.0` | Seconds a lost hand track is kept alive to bridge detector dropouts | Rarely needs changing |
+| `iou_match` | `0.3` | Frame-to-frame overlap to treat a hand as the same track | Rarely needs changing |
+| `rack_window` | `1.5` | Seconds of the counting burst at each session boundary | Raise if a boundary count is unstable |
+| `dish_interval` | `0.5` | Min seconds between dish-detector runs within a burst | Raise to save CPU; lower for more samples |
 
-After editing, just restart `dishcounter run`.
+**Dish detection (top level):** `dish_classes` (what to count — e.g. plate, bowl,
+cup, glass, mug), `dish_conf` (min confidence), `yolo_model` (weights).
+
+After editing, restart `rackwash run`.
 
 ---
 
-## 7. Development
-
-The entire pipeline is testable **without a camera or any model weights** — a fake
-camera and a fake hand detector drive the whole flow, so the suite runs anywhere
-(MediaPipe is never imported in tests):
-
-```bash
-.venv/bin/pytest         # full suite, no hardware needed
-.venv/bin/ruff check .   # lint
-```
-
-### How it works
+## 7. How it works
 
 ```
-Vision thread:  Camera ─ HandDetector (MediaPipe) ─ IouTracker ─ recognize_gesture ─ SessionController ─┐
-                                                                                                         ├─ WashCycleEngine ─ CountStore
-                                                                                                         │  (publishes frame + counts)
-Web thread:     FastAPI → streams the latest annotated frame + scoreboard to the browser
+Camera → MediaPipe(hands) → IouTracker → recognize_gesture → SessionController ┐
+                                                                               ├→ RackDeltaCounter → CountStore
+                                          YOLO-World(dishware), boundary bursts ┘   (publishes frame + counts)
+Web thread: FastAPI streams the latest annotated frame + scoreboard to the browser
 ```
 
-**The hand leaving the sink zone drives the count; the active session supplies
-identity.** A single MediaPipe hand detector feeds an IoU tracker that assigns stable
-ids across frames (with coasting to bridge brief detection dropouts). `recognize_gesture`
-reads the hand landmarks each frame (one/two/fist/other). `SessionController` debounces
-those results — a gesture must be held for `gesture_hold` seconds before it acts — and
-exposes an `active` washer (`"You"`, `"Wife"`, or `None`). `WashCycleEngine` tracks how
-long each hand id has been continuously inside the sink zone; when a hand leaves (or
-disappears from frame), it fires a `WashEvent` if the dwell reached `min_wash` seconds
-and an active session is set. A short per-person `cooldown` collapses bursts (e.g. a
-two-handed carry). With no active session the engine records nothing.
+A MediaPipe hand detector feeds an IoU tracker. `recognize_gesture` reads finger
+poses, but the engine only accepts a gesture from a hand **inside the sign-in box**.
+`SessionController` debounces it (held `gesture_hold` seconds) into an active washer
+(`You` / `Wife` / `None`), toggling per number. At each session **boundary** the
+`RackDeltaCounter` runs a short YOLO-World burst over the rack zones, counts the
+dishware present, and credits `max(0, end − start)` per rack to the session's washer
+(racks marked "body blocks it" are skipped on frames where a person/hand overlaps
+them). Counts are an **append-only event log**, so totals are always reconstructable.
 
-The vision thread never blocks on the browser, so the frame rate is independent of how
-many tabs are open. Counts are **derived from an append-only event log**, so the totals
-are always reconstructable and a single bad frame can never corrupt the score.
+The vision thread never blocks on the browser. Detectors sit behind small
+interfaces, so the whole pipeline runs in tests with fakes and no hardware.
 
-The hand detector sits behind a small `HandDetector` interface, so swapping models is a
-one-file change.
-
-See `docs/superpowers/specs/` for the design spec and `docs/superpowers/plans/` for the
-implementation plan.
+See `docs/superpowers/specs/` and `docs/superpowers/plans/` for design notes.
 
 ---
 
@@ -209,17 +179,25 @@ implementation plan.
 
 | Symptom | Likely cause / fix |
 |---|---|
-| `run` exits asking you to calibrate | No `config.yaml` yet — run `dishcounter calibrate`. |
+| `run` says no rack zones / asks to calibrate | Run `rackwash calibrate` and draw at least one rack zone. |
 | Dashboard shows "camera offline" | Webcam unplugged or wrong index — reconnect, or try `--camera 1`. |
 | `pip install` fails on MediaPipe | The venv isn't Python 3.12 — recreate it with the `brew --prefix python@3.12` interpreter (Step 2). |
-| Washes aren't being counted | Make sure the sink zone is snug around the basin (re-run `calibrate` if needed), and keep your hand in the sink long enough for the dwell timer — watch for the hand box turning green to confirm the zone is right. |
-| Washes counted too early or mid-wash | **Raise** `min_wash` so the hand must stay in the sink longer before the exit triggers a count. |
-| Overcounting due to hand flickering | **Raise** `track_coast` so brief detection dropouts don't reset the dwell timer and produce extra counts. |
-| Session won't start | Hold 1 or 2 fingers steady, facing the camera, for the full `gesture_hold` duration (~1 s). Watch the `gesture:` label in the feed to confirm the hand is being read correctly. |
-| Session starts accidentally | Raise `gesture_hold` in `config.yaml` so a longer deliberate hold is required. |
-| Wrong person's session is active | Show the correct finger count (1 or 2) to switch directly, or repeat the active number to end the session. |
-| One wash counts twice | Raise `cooldown` in `config.yaml`. |
-| Washes not counted during a valid session | Check the session banner shows the right name. Also check the sink zone is drawn around the basin — re-run `calibrate` if needed. |
+| Sessions keep switching / ending by themselves | Make sure you calibrated a **sign-in box** and only gesture inside it. If you skipped it, re-run `calibrate` and draw one. |
+| Session won't start | Hold 1 or 2 fingers steady **inside the sign-in box** for the full `gesture_hold` (~1.5s). Watch the `gesture:` label to confirm it's read. |
+| Counts seem low/high at a boundary | Make sure the rack zone tightly frames where dishes land, and that nothing blocks it during the end burst; tune `rack_window`. |
+| Wrong person credited | Show the correct number in the sign-in box to switch, or repeat the active number to end. |
+
+---
+
+## 9. Development
+
+```bash
+.venv/bin/python -m pytest rackwash/tests   # rackwash suite, no hardware needed
+.venv/bin/ruff check rackwash/src rackwash/tests
+```
+
+The whole pipeline is testable without a camera or model weights — fakes drive the
+camera and detectors, and neither MediaPipe nor YOLO is imported in tests.
 
 ---
 
@@ -227,8 +205,7 @@ implementation plan.
 
 The app stores only:
 
-- `config.yaml` — the sink rectangle and threshold settings. No skin profiles, no
-  biometric data of any kind.
-- `dishcounter.db` — rows of `(person, timestamp, confidence, counted)`.
+- `config.yaml` — rack/sign-in rectangles and threshold settings. No biometric data.
+- `rackwash.db` — rows of `(person, timestamp, confidence, counted)`.
 
 No video, no photos of faces or hands, are ever written to disk.
