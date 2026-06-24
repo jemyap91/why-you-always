@@ -49,6 +49,13 @@ dishware added to your racks during the session and credits it to that washer.
 On first run, MediaPipe and YOLO-World download their weights (~hundreds of MB).
 YOLO runs only in short bursts at the start and end of each session.
 
+After each session, the dashboard shows a **last session** line — the rack dish
+counts measured at the **start** and **end** of that session and the credited
+delta (e.g. `last session You — rack start [0] end [2] (+2)`). The same line is
+printed to the terminal. Use it to verify detection: `end [null]` means the rack
+burst got no clean samples (your body blocked a `requires_clear` rack the whole
+time), `end [0]` means no dishes were detected in the rack box.
+
 The dashboard also has two buttons:
 
 - **Reset counts** — zeroes both today and all-time (after a confirm). It's

@@ -79,3 +79,13 @@ def test_ws_includes_detection_fields():
         msg = ws.receive_json()
         assert "show_detections" in msg
         assert msg["detections"] == ["plate"]
+
+
+def test_ws_includes_last_session():
+    state = SharedState()
+    summary = {"washer": "You", "start": [0], "end": [2], "delta": 2}
+    state.publish(None, {"all_time": {"You": 2, "Wife": 0}}, camera_online=True,
+                  last_session=summary)
+    client = TestClient(create_app(state))
+    with client.websocket_connect("/ws") as ws:
+        assert ws.receive_json()["last_session"] == summary

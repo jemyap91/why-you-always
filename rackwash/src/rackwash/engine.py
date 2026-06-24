@@ -90,6 +90,7 @@ class Engine:
         self._dish_interval = t.dish_interval
         self._last_preview_run: float | None = None
         self._preview_cache: list = []
+        self._last_summary_seen: dict | None = None
         self._hand_tracker = IouTracker(
             iou_threshold=t.iou_match, coast_seconds=t.track_coast
         )
@@ -142,6 +143,15 @@ class Engine:
         events = self._rack.process(active, hands, now, detect)
         for event in events:
             self._store.record(event)
+        summary = self._rack.last_summary
+        if summary is not None and summary is not self._last_summary_seen:
+            self._last_summary_seen = summary
+            print(
+                f"[rackwash] boundary {summary['washer'] or '—'}: "
+                f"rack start={summary['start']} end={summary['end']} "
+                f"+{summary['delta']}",
+                flush=True,
+            )
         preview = self._preview_dishes(frame, now)
         annotated = self._annotate(
             frame, self._config, hands, active, gesture, self._rack.is_collecting,
@@ -149,7 +159,7 @@ class Engine:
         )
         self._state.publish(
             self._encode(annotated), self._store.totals(now), camera_online=True,
-            detections=[d.label for d in preview],
+            detections=[d.label for d in preview], last_session=summary,
         )
         return events
 

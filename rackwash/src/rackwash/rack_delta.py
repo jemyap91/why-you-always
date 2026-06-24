@@ -37,6 +37,9 @@ class RackDeltaCounter:
         self._closing_washer: str | None = None
         self._closing_baseline: list[int | None] = []
         self._new_washer: str | None = None
+        # Last finalized boundary, for verification/observability:
+        # {"washer", "start": per-rack baseline, "end": per-rack count, "delta"}.
+        self.last_summary: dict | None = None
 
     @property
     def is_collecting(self) -> bool:
@@ -90,12 +93,12 @@ class RackDeltaCounter:
 
     def _finalize(self, now: float) -> list[WashEvent]:
         end = [statistics.median_low(s) if s else None for s in self._samples]
+        delta = 0
+        for base, fin in zip(self._closing_baseline, end):
+            if base is not None and fin is not None:
+                delta += max(0, fin - base)
         events: list[WashEvent] = []
         if self._closing_washer in ("You", "Wife"):
-            delta = 0
-            for base, fin in zip(self._closing_baseline, end):
-                if base is not None and fin is not None:
-                    delta += max(0, fin - base)
             events = [
                 WashEvent(
                     person=self._closing_washer, timestamp=now,
@@ -103,6 +106,12 @@ class RackDeltaCounter:
                 )
                 for _ in range(delta)
             ]
+        self.last_summary = {
+            "washer": self._closing_washer,
+            "start": list(self._closing_baseline),
+            "end": list(end),
+            "delta": delta,
+        }
         self._baseline = end
         self._washer = self._new_washer
         self._collecting = False

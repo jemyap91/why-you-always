@@ -16,16 +16,18 @@ class SharedState:
         self._camera_online = False
         self._show_detections = False  # web-toggled; engine reads it
         self._detections: list[str] = []  # dish labels seen this frame (preview)
+        self._last_session: dict | None = None  # last boundary's start/end/delta
 
     def publish(
         self, frame_jpeg: bytes | None, counts: dict, camera_online: bool,
-        detections: list[str] | None = None,
+        detections: list[str] | None = None, last_session: dict | None = None,
     ) -> None:
         with self._lock:
             self._frame_jpeg = frame_jpeg
             self._counts = copy.deepcopy(counts)
             self._camera_online = camera_online
             self._detections = list(detections or [])
+            self._last_session = copy.deepcopy(last_session)
 
     def snapshot(self) -> dict:
         with self._lock:
@@ -35,6 +37,7 @@ class SharedState:
                 "camera_online": self._camera_online,
                 "show_detections": self._show_detections,
                 "detections": list(self._detections),
+                "last_session": copy.deepcopy(self._last_session),
             }
 
     def toggle_detections(self) -> bool:

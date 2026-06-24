@@ -51,3 +51,11 @@ def test_publish_and_snapshot_carry_detections():
 
 def test_detections_default_empty():
     assert SharedState().snapshot()["detections"] == []
+
+
+def test_publish_and_snapshot_carry_last_session():
+    state = SharedState()
+    assert state.snapshot()["last_session"] is None
+    summary = {"washer": "You", "start": [0], "end": [2], "delta": 2}
+    state.publish(None, {}, camera_online=True, last_session=summary)
+    assert state.snapshot()["last_session"] == summary

@@ -23,6 +23,8 @@ _INDEX_HTML = """<!doctype html>
  .zoom{margin:.5rem}
  .zoom button{font-size:1rem;padding:.3rem .8rem;margin:0 .2rem;cursor:pointer}
  #status{color:#f55}
+ #lastsession{font-size:1.6rem;font-weight:700;margin:.6rem;color:#7fd}
+ #detected{font-size:1.3rem;color:#f6f}
 </style></head>
 <body>
  <h1>Dish Counter</h1>
@@ -39,6 +41,7 @@ _INDEX_HTML = """<!doctype html>
   <button onclick="resetCounts()">Reset counts</button>
  </div>
  <p id="detected"></p>
+ <p id="lastsession"></p>
  <div class="board">
   <div><div class="name">You</div><div class="num" id="you">0</div>
        <div id="you-all">all-time 0</div></div>
@@ -75,6 +78,11 @@ _INDEX_HTML = """<!doctype html>
      d.show_detections ? 'Hide detections' : 'Show detections';
    document.getElementById('detected').textContent =
      d.show_detections ? ('detected: ' + ((d.detections || []).join(', ') || 'none')) : '';
+   const ls = d.last_session;
+   document.getElementById('lastsession').textContent = ls
+     ? ('last session ' + (ls.washer || '—') + ' — rack start ' + JSON.stringify(ls.start)
+        + ' end ' + JSON.stringify(ls.end) + '  (+' + ls.delta + ')')
+     : '';
  };
 </script>
 </body></html>
@@ -131,6 +139,7 @@ def create_app(state: SharedState, store=None) -> FastAPI:
                         "camera_online": snap["camera_online"],
                         "show_detections": snap["show_detections"],
                         "detections": snap["detections"],
+                        "last_session": snap["last_session"],
                     }
                 )
                 await asyncio.sleep(0.5)

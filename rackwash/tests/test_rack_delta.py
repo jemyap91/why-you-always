@@ -132,3 +132,16 @@ def test_detect_called_only_during_bursts_and_throttled():
     c.process("You", [], 2.0, detect)       # finalize; throttled
     c.process("You", [], 3.0, detect)       # active, not collecting
     assert len(calls) == 2
+
+
+def test_last_summary_reports_start_end_and_delta():
+    c = RackDeltaCounter([R], LABELS, rack_window=1.0, dish_interval=0.4)
+    c.process("You", [], 0.0, _det([]))
+    c.process("You", [], 0.5, _det([]))
+    c.process("You", [], 1.0, _det([]))            # finalize start burst
+    assert c.last_summary == {"washer": None, "start": [None], "end": [0], "delta": 0}
+    two = [_plate(20), _plate(40)]
+    c.process(None, [], 10.0, _det(two))
+    c.process(None, [], 10.5, _det(two))
+    c.process(None, [], 11.0, _det(two))           # finalize end burst
+    assert c.last_summary == {"washer": "You", "start": [0], "end": [2], "delta": 2}
