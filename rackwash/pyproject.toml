@@ -1,0 +1,39 @@
+[project]
+name = "rackwash"
+version = "0.1.0"
+description = "Outcome-based dish-washing scoreboard (rack-delta counting)"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "opencv-python>=4.9",
+    "mediapipe>=0.10",
+    "numpy>=1.26",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "websockets>=12",
+    "pydantic>=2.6",
+    "pyyaml>=6.0",
+    "ultralytics>=8.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.4", "httpx>=0.27"]
+
+[project.scripts]
+rackwash = "rackwash.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated:Warning",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
