@@ -72,3 +72,17 @@ def test_full_session_counts_rack_delta_for_you(sample_config, blank_frame):
     engine.process_frame(blank_frame, 7.5)   # finalize -> delta 2
 
     assert engine._store.totals(7.5)["all_time"] == {"You": 2, "Wife": 0}
+
+
+def test_gesture_only_registers_inside_sign_in_zone_when_set():
+    from rackwash.config import Config, RackZone, Thresholds, Zone
+
+    cfg = Config(
+        camera_index=0,
+        rack_zones=[RackZone(x1=0, y1=0, x2=100, y2=100, requires_clear=False)],
+        sign_in_zone=Zone(x1=150, y1=0, x2=200, y2=50),
+        thresholds=Thresholds(track_coast=0.0),
+    )
+    engine = _engine(cfg, [[]], _RackFake())
+    assert engine._resolve_gesture([_hand(175, 25, {"index"})]) == "one"   # inside box
+    assert engine._resolve_gesture([_hand(50, 50, {"index"})]) == "other"  # outside box

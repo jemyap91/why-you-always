@@ -28,8 +28,13 @@ Installs into the shared project venv (reuses the heavy MediaPipe/YOLO wheels):
 
 For each drying rack, drag a rectangle and press **Enter**, then press **`b`** if
 your body blocks that rack while washing, or **`a`** if it stays visible. Press
-**Esc** (without dragging) when you've added all your racks. Saves `config.yaml`
-(rack rectangles only — no images).
+**Esc** (without dragging) when you've added all your racks.
+
+Then drag the **sign-in box** — a small box in a corner, **away from the racks
+and your normal hand paths**. Gestures (1/2 fingers) are only read inside this
+box, so incidental hand poses while washing can't flip the session. Press
+**Esc** to skip it (gestures then register from any hand — the old, flip-prone
+behavior). Saves `config.yaml` (rectangles only — no images).
 
 ## Run
 
@@ -37,8 +42,9 @@ your body blocks that rack while washing, or **`a`** if it stays visible. Press
 .venv/bin/rackwash run        # open http://127.0.0.1:8000
 ```
 
-Start a session by holding up **1 finger** (You) or **2** (Wife) for ~1.5s,
-anywhere in view; show the same number again to end it. The app counts the
+Start a session by holding **1 finger** (You) or **2** (Wife) for ~1.5s **inside
+the sign-in box** (shown in yellow on the feed); show the same number again to
+end it, or the other number to switch. The app counts the
 dishware added to your racks during the session and credits it to that washer.
 On first run, MediaPipe and YOLO-World download their weights (~hundreds of MB).
 YOLO runs only in short bursts at the start and end of each session.

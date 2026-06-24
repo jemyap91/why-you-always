@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 config.yaml
 dishcounter.db
+rackwash.db
+*.db
 .pytest_cache/
 .ruff_cache/
 .superpowers/

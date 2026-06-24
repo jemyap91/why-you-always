@@ -29,3 +29,15 @@ def test_annotate_collecting_marker_adds_pixels():
     base = annotate(frame, _cfg(), [], "You", "other", False)
     marked = annotate(frame, _cfg(), [], "You", "other", True)
     assert int(marked.sum()) > int(base.sum())
+
+
+def test_sign_in_zone_drawn_when_set():
+    from rackwash.config import Config, RackZone, Zone
+
+    cfg = Config(camera_index=0,
+                 rack_zones=[RackZone(x1=0, y1=0, x2=50, y2=50, requires_clear=False)],
+                 sign_in_zone=Zone(x1=150, y1=0, x2=199, y2=50))
+    frame = np.zeros((120, 200, 3), dtype=np.uint8)
+    without = annotate(frame, _cfg(), [], None, "other")
+    withzone = annotate(frame, cfg, [], None, "other")
+    assert int(withzone.sum()) > int(without.sum())

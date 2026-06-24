@@ -35,6 +35,11 @@ def annotate(frame: np.ndarray, config: Config, hands, active_washer, gesture,
     for rz in config.rack_zones:
         color = (0, 165, 255) if rz.requires_clear else (255, 0, 0)
         cv2.rectangle(out, (rz.x1, rz.y1), (rz.x2, rz.y2), color, 2)
+    si = config.sign_in_zone
+    if si is not None:
+        cv2.rectangle(out, (si.x1, si.y1), (si.x2, si.y2), (0, 255, 255), 2)
+        cv2.putText(out, "sign in", (si.x1, max(12, si.y1 - 4)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
     for hand in hands:
         x1, y1, x2, y2 = hand.bbox
         cv2.rectangle(out, (x1, y1), (x2, y2), (0, 255, 0), 1)
@@ -87,7 +92,13 @@ class Engine:
         )
 
     def _resolve_gesture(self, hands) -> str:
+        # A gesture only counts from a hand inside the sign-in zone (when one is
+        # calibrated), so incidental finger poses while washing can't flip the
+        # session. With no sign-in zone configured, any hand is accepted (legacy).
+        zone = self._config.sign_in_zone
         for hand in hands:
+            if zone is not None and not zone.contains(hand.centroid):
+                continue
             g = recognize_gesture(hand)
             if g in ("one", "two"):
                 return g
