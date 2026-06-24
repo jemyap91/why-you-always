@@ -45,6 +45,7 @@ class Thresholds(BaseModel):
 class Config(BaseModel):
     camera_index: int
     rack_zones: list[RackZone] = Field(default_factory=list)
+    sign_in_zone: Zone | None = None  # gestures only count inside this box (if set)
     thresholds: Thresholds = Thresholds()
     dish_classes: list[str] = Field(
         default_factory=lambda: ["plate", "bowl", "cup", "glass", "mug"]

@@ -46,3 +46,18 @@ def test_config_round_trips_rack_zones(tmp_path):
 def test_load_missing_file_tells_user_to_calibrate(tmp_path):
     with pytest.raises(FileNotFoundError, match="calibrate"):
         Config.load(tmp_path / "nope.yaml")
+
+
+def test_sign_in_zone_defaults_none_and_round_trips(tmp_path):
+    from rackwash.config import Config, RackZone, Zone
+
+    cfg = Config(camera_index=0,
+                 rack_zones=[RackZone(x1=0, y1=0, x2=10, y2=10)])
+    assert cfg.sign_in_zone is None
+
+    cfg.sign_in_zone = Zone(x1=150, y1=0, x2=200, y2=50)
+    path = tmp_path / "c.yaml"
+    cfg.save(path)
+    loaded = Config.load(path)
+    assert loaded.sign_in_zone is not None
+    assert loaded.sign_in_zone.contains((175, 25))

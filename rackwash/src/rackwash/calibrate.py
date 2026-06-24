@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from rackwash.config import Config, RackZone, Thresholds
+from rackwash.config import Config, RackZone, Thresholds, Zone
 
 
 def rack_zone_from_drag(
@@ -15,6 +15,12 @@ def rack_zone_from_drag(
     x1, x2 = sorted((start[0], end[0]))
     y1, y2 = sorted((start[1], end[1]))
     return RackZone(x1=x1, y1=y1, x2=x2, y2=y2, requires_clear=requires_clear)
+
+
+def sign_in_zone_from_drag(start: tuple[int, int], end: tuple[int, int]) -> Zone:
+    x1, x2 = sorted((start[0], end[0]))
+    y1, y2 = sorted((start[1], end[1]))
+    return Zone(x1=x1, y1=y1, x2=x2, y2=y2)
 
 
 def run_calibration(
@@ -44,12 +50,31 @@ def run_calibration(
             key = cv2.waitKey(0) & 0xFF
         rack_zones.append(rack_zone_from_drag((x, y), (x + bw, y + bh), key == ord("b")))
     cv2.destroyAllWindows()
-    cam.release()
 
     if not rack_zones:
+        cam.release()
         print("No rack zones drawn; nothing saved.")
         return
+
+    print(
+        "Now drag the SIGN-IN box — a corner away from the racks and your hands.\n"
+        "Gestures (1/2 fingers) only count inside this box. ESC to skip."
+    )
+    frame = None
+    while frame is None:
+        frame = cam.read()
+    roi = cv2.selectROI("drag the sign-in box (ESC to skip)", frame, showCrosshair=True)
+    x, y, bw, bh = (int(v) for v in roi)
+    sign_in_zone = (
+        sign_in_zone_from_drag((x, y), (x + bw, y + bh)) if bw and bh else None
+    )
+    cv2.destroyAllWindows()
+    cam.release()
+    if sign_in_zone is None:
+        print("No sign-in box drawn; gestures will register from any hand.")
+
     Config(
-        camera_index=camera_index, rack_zones=rack_zones, thresholds=Thresholds()
+        camera_index=camera_index, rack_zones=rack_zones,
+        sign_in_zone=sign_in_zone, thresholds=Thresholds()
     ).save(config_path)
     print(f"Saved {len(rack_zones)} rack zone(s) to {config_path}.")
