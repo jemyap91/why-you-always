@@ -49,6 +49,16 @@ dishware added to your racks during the session and credits it to that washer.
 On first run, MediaPipe and YOLO-World download their weights (~hundreds of MB).
 YOLO runs only in short bursts at the start and end of each session.
 
+The dashboard also has two buttons:
+
+- **Reset counts** — zeroes both today and all-time (after a confirm). It's
+  non-destructive: the event log keeps every row; totals just resume from the
+  reset point.
+- **Show detections** — turns on a live overlay of what the dish detector sees
+  (boxes + labels, plus a `detected: …` line), so you can verify recognition.
+  It's **off by default** because it runs YOLO continuously (more CPU); toggle
+  it off again when you're done checking.
+
 ## How it works
 
 ```

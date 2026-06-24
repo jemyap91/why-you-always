@@ -28,13 +28,18 @@ def encode_jpeg(frame: np.ndarray) -> bytes:
 
 
 def annotate(frame: np.ndarray, config: Config, hands, active_washer, gesture,
-             collecting: bool = False) -> np.ndarray:
+             collecting: bool = False, dishes=None) -> np.ndarray:
     import cv2  # noqa: PLC0415
 
     out = frame.copy()
     for rz in config.rack_zones:
         color = (0, 165, 255) if rz.requires_clear else (255, 0, 0)
         cv2.rectangle(out, (rz.x1, rz.y1), (rz.x2, rz.y2), color, 2)
+    for dish in dishes or []:
+        x1, y1, x2, y2 = dish.bbox
+        cv2.rectangle(out, (x1, y1), (x2, y2), (255, 0, 255), 2)
+        cv2.putText(out, f"{dish.label} {dish.confidence:.2f}", (x1, max(12, y1 - 4)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
     si = config.sign_in_zone
     if si is not None:
         cv2.rectangle(out, (si.x1, si.y1), (si.x2, si.y2), (0, 255, 255), 2)
@@ -82,6 +87,9 @@ class Engine:
         self._running = False
 
         t = config.thresholds
+        self._dish_interval = t.dish_interval
+        self._last_preview_run: float | None = None
+        self._preview_cache: list = []
         self._hand_tracker = IouTracker(
             iou_threshold=t.iou_match, coast_seconds=t.track_coast
         )
@@ -104,6 +112,24 @@ class Engine:
                 return g
         return "other"
 
+    def _preview_dishes(self, frame, now: float) -> list:
+        # Live dish overlay is opt-in (default off) so YOLO stays burst-only.
+        # When on, run the detector at most every dish_interval seconds.
+        if self._dish_detector is None or not self._state.show_detections():
+            self._preview_cache = []
+            return []
+        if (
+            self._last_preview_run is not None
+            and (now - self._last_preview_run) < self._dish_interval
+        ):
+            return self._preview_cache
+        self._last_preview_run = now
+        try:
+            self._preview_cache = self._dish_detector.detect(frame)
+        except Exception:
+            self._preview_cache = []
+        return self._preview_cache
+
     def process_frame(self, frame: np.ndarray, now: float) -> list[WashEvent]:
         hands = self._hand_tracker.update(self._detector.detect(frame), now)
         gesture = self._resolve_gesture(hands)
@@ -116,11 +142,14 @@ class Engine:
         events = self._rack.process(active, hands, now, detect)
         for event in events:
             self._store.record(event)
+        preview = self._preview_dishes(frame, now)
         annotated = self._annotate(
-            frame, self._config, hands, active, gesture, self._rack.is_collecting
+            frame, self._config, hands, active, gesture, self._rack.is_collecting,
+            preview,
         )
         self._state.publish(
-            self._encode(annotated), self._store.totals(now), camera_online=True
+            self._encode(annotated), self._store.totals(now), camera_online=True,
+            detections=[d.label for d in preview],
         )
         return events
 

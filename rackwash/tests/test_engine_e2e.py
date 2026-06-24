@@ -86,3 +86,32 @@ def test_gesture_only_registers_inside_sign_in_zone_when_set():
     engine = _engine(cfg, [[]], _RackFake())
     assert engine._resolve_gesture([_hand(175, 25, {"index"})]) == "one"   # inside box
     assert engine._resolve_gesture([_hand(50, 50, {"index"})]) == "other"  # outside box
+
+
+class _CountingRack:
+    def __init__(self, dishes=None):
+        self.dishes = list(dishes or [])
+        self.calls = 0
+
+    def detect(self, frame):
+        self.calls += 1
+        return list(self.dishes)
+
+
+def test_live_detections_published_when_toggle_on(sample_config, blank_frame):
+    rack = _CountingRack([_plate(20)])
+    engine = _engine(sample_config, [[]], rack)
+    engine._state.toggle_detections()           # turn live preview on
+    engine.process_frame(blank_frame, 0.0)
+    snap = engine._state.snapshot()
+    assert snap["detections"] == ["plate"]
+    assert rack.calls >= 1
+
+
+def test_no_live_detection_when_toggle_off(sample_config, blank_frame):
+    rack = _CountingRack([_plate(20)])
+    engine = _engine(sample_config, [[]], rack)   # toggle off, no active session
+    engine.process_frame(blank_frame, 0.0)
+    snap = engine._state.snapshot()
+    assert snap["detections"] == []
+    assert rack.calls == 0

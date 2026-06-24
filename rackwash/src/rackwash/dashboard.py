@@ -34,6 +34,11 @@ _INDEX_HTML = """<!doctype html>
   <button onclick="zoom(0.5)">Zoom +</button>
   <button onclick="zoomReset()">Reset</button>
  </div>
+ <div class="zoom">
+  <button onclick="toggleDetections()" id="detbtn">Show detections</button>
+  <button onclick="resetCounts()">Reset counts</button>
+ </div>
+ <p id="detected"></p>
  <div class="board">
   <div><div class="name">You</div><div class="num" id="you">0</div>
        <div id="you-all">all-time 0</div></div>
@@ -51,6 +56,12 @@ _INDEX_HTML = """<!doctype html>
  function zoomReset(){ z = 1; applyZoom(); }
  applyZoom();
 
+ function toggleDetections(){ fetch('/detections', {method:'POST'}); }
+ function resetCounts(){
+   if (confirm('Reset all counts (today and all-time)?'))
+     fetch('/reset', {method:'POST'});
+ }
+
  const ws = new WebSocket(`ws://${location.host}/ws`);
  ws.onmessage = (e) => {
    const d = JSON.parse(e.data);
@@ -60,13 +71,17 @@ _INDEX_HTML = """<!doctype html>
    document.getElementById('you-all').textContent = 'all-time ' + a.You;
    document.getElementById('wife-all').textContent = 'all-time ' + a.Wife;
    status.textContent = d.camera_online ? '' : 'camera offline';
+   document.getElementById('detbtn').textContent =
+     d.show_detections ? 'Hide detections' : 'Show detections';
+   document.getElementById('detected').textContent =
+     d.show_detections ? ('detected: ' + ((d.detections || []).join(', ') || 'none')) : '';
  };
 </script>
 </body></html>
 """
 
 
-def create_app(state: SharedState) -> FastAPI:
+def create_app(state: SharedState, store=None) -> FastAPI:
     app = FastAPI()
 
     @app.get("/", response_class=HTMLResponse)
@@ -76,6 +91,16 @@ def create_app(state: SharedState) -> FastAPI:
     @app.get("/counts")
     def counts() -> JSONResponse:
         return JSONResponse(state.snapshot()["counts"])
+
+    @app.post("/reset")
+    def reset() -> JSONResponse:
+        if store is not None:
+            store.reset(time.time())
+        return JSONResponse({"ok": True})
+
+    @app.post("/detections")
+    def detections() -> JSONResponse:
+        return JSONResponse({"show_detections": state.toggle_detections()})
 
     @app.get("/stream")
     def stream() -> StreamingResponse:
@@ -104,6 +129,8 @@ def create_app(state: SharedState) -> FastAPI:
                     {
                         "counts": snap["counts"],
                         "camera_online": snap["camera_online"],
+                        "show_detections": snap["show_detections"],
+                        "detections": snap["detections"],
                     }
                 )
                 await asyncio.sleep(0.5)
@@ -113,7 +140,9 @@ def create_app(state: SharedState) -> FastAPI:
     return app
 
 
-def run_server(state: SharedState, host: str = "127.0.0.1", port: int = 8000) -> None:
+def run_server(
+    state: SharedState, store=None, host: str = "127.0.0.1", port: int = 8000
+) -> None:
     import uvicorn  # noqa: PLC0415
 
-    uvicorn.run(create_app(state), host=host, port=port, log_level="warning")
+    uvicorn.run(create_app(state, store), host=host, port=port, log_level="warning")

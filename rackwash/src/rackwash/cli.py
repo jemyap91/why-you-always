@@ -65,11 +65,12 @@ def _serve(config: Config, db: str, host: str, port: int) -> None:  # pragma: no
     from rackwash.store import CountStore  # noqa: PLC0415
 
     state = SharedState()
+    store = CountStore(db)
     engine = Engine(
         Camera(config.camera_index),
         MediaPipeHandDetector(),
         config,
-        CountStore(db),
+        store,
         state,
         dish_detector=YoloWorldDishDetector(
             [*config.dish_classes, "person"], config.dish_conf, config.yolo_model
@@ -77,7 +78,7 @@ def _serve(config: Config, db: str, host: str, port: int) -> None:  # pragma: no
     )
     threading.Thread(target=engine.run, daemon=True).start()
     print(f"Dashboard at http://{host}:{port}")
-    run_server(state, host=host, port=port)
+    run_server(state, store, host=host, port=port)
 
 
 if __name__ == "__main__":  # pragma: no cover
