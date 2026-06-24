@@ -11,7 +11,7 @@ from collections.abc import Callable
 
 from rackwash.config import RackZone
 from rackwash.domain import Dish, Hand, WashEvent
-from rackwash.rack import count_dishware, rack_occluded
+from rackwash.rack import count_dishware, dedupe_overlapping, rack_occluded
 
 
 class RackDeltaCounter:
@@ -86,10 +86,12 @@ class RackDeltaCounter:
         except Exception:  # noqa: BLE001 - a flaky detector must not crash the loop
             return
         persons = [d for d in dishes if d.label == "person"]
+        # De-duplicate overlapping boxes so one physical dish counts once.
+        ware = dedupe_overlapping([d for d in dishes if d.label in self._labels])
         for i, zone in enumerate(self._zones):
             if zone.requires_clear and rack_occluded(zone, persons, hands):
                 continue
-            self._samples[i].append(count_dishware(dishes, zone, self._labels))
+            self._samples[i].append(count_dishware(ware, zone, self._labels))
 
     def _finalize(self, now: float) -> list[WashEvent]:
         end = [statistics.median_low(s) if s else None for s in self._samples]

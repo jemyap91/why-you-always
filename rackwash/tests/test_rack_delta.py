@@ -145,3 +145,19 @@ def test_last_summary_reports_start_end_and_delta():
     c.process(None, [], 10.5, _det(two))
     c.process(None, [], 11.0, _det(two))           # finalize end burst
     assert c.last_summary == {"washer": "You", "start": [0], "end": [2], "delta": 2}
+
+
+def test_duplicate_boxes_count_as_one_dish():
+    # One physical mug double-boxed (mug + cup, heavy overlap) must count once.
+    c = RackDeltaCounter([R], LABELS, rack_window=1.0, dish_interval=0.4)
+    dup = [
+        Dish(id=None, bbox=(20, 20, 60, 60), label="mug", confidence=0.95),
+        Dish(id=None, bbox=(22, 22, 62, 62), label="cup", confidence=0.60),
+    ]
+    c.process("You", [], 0.0, _det([]))
+    c.process("You", [], 0.5, _det([]))
+    c.process("You", [], 1.0, _det([]))            # baseline 0
+    c.process(None, [], 10.0, _det(dup))
+    c.process(None, [], 10.5, _det(dup))
+    c.process(None, [], 11.0, _det(dup))           # finalize
+    assert c.last_summary["end"] == [1]            # not [2]

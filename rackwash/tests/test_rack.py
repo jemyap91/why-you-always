@@ -32,3 +32,22 @@ def test_rack_occluded_true_when_hand_box_overlaps():
 def test_rack_occluded_false_when_nothing_overlaps():
     person = Dish(id=None, bbox=(200, 200, 260, 260), label="person", confidence=0.9)
     assert rack_occluded(ZONE, [person], [Hand(id=1, bbox=(300, 300, 320, 320))]) is False
+
+
+def test_dedupe_merges_overlapping_boxes_keeps_highest_conf():
+    from rackwash.rack import dedupe_overlapping
+
+    mug = Dish(id=None, bbox=(0, 0, 20, 20), label="mug", confidence=0.96)
+    cup = Dish(id=None, bbox=(1, 1, 21, 21), label="cup", confidence=0.60)  # same object
+    bowl = Dish(id=None, bbox=(100, 100, 120, 120), label="bowl", confidence=0.5)
+    out = dedupe_overlapping([cup, mug, bowl])
+    labels = sorted(d.label for d in out)
+    assert labels == ["bowl", "mug"]  # cup dropped as a duplicate of the mug
+
+
+def test_dedupe_keeps_distinct_adjacent_dishes():
+    from rackwash.rack import dedupe_overlapping
+
+    a = Dish(id=None, bbox=(0, 0, 20, 20), label="plate", confidence=0.9)
+    b = Dish(id=None, bbox=(15, 0, 35, 20), label="plate", confidence=0.9)  # ~0.14 IoU
+    assert len(dedupe_overlapping([a, b])) == 2
