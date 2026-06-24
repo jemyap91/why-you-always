@@ -67,3 +67,26 @@ def test_counts_survive_reopening_the_database(tmp_path):
     CountStore(path).record(WashEvent("Wife", now, 0.8, 2))
     reopened = CountStore(path)
     assert reopened.totals(now)["all_time"] == {"You": 0, "Wife": 1}
+
+
+def test_reset_zeroes_totals_but_keeps_counting_after():
+    store = CountStore(":memory:")
+    t = _ts(2026, 6, 22)
+    store.record(WashEvent("You", t, 1.0, 1))
+    store.record(WashEvent("Wife", t, 1.0, 2))
+    assert store.totals(t)["all_time"] == {"You": 1, "Wife": 1}
+
+    store.reset(t + 1)
+    assert store.totals(t + 2)["all_time"] == {"You": 0, "Wife": 0}
+    assert store.totals(t + 2)["today"] == {"You": 0, "Wife": 0}
+
+    store.record(WashEvent("You", t + 3, 1.0, 3))
+    assert store.totals(t + 4)["all_time"] == {"You": 1, "Wife": 0}
+    assert store.totals(t + 4)["today"] == {"You": 1, "Wife": 0}
+
+
+def test_reset_marker_is_not_counted():
+    store = CountStore(":memory:")
+    t = _ts(2026, 6, 22)
+    store.reset(t)
+    assert store.totals(t)["all_time"] == {"You": 0, "Wife": 0}

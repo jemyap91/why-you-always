@@ -4,6 +4,7 @@ bad frame can never corrupt cumulative state (event sourcing)."""
 from __future__ import annotations
 
 import sqlite3
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -20,40 +21,62 @@ CREATE TABLE IF NOT EXISTS events (
 """
 
 
+_RESET_MARKER = "__reset__"
+
+
 class CountStore:
     def __init__(self, db_path: str | Path) -> None:
-        # The store is constructed on the main thread but driven from the engine
-        # thread; only that one thread ever touches it, so disabling the
-        # same-thread guard is safe (access is already serialized to a single
-        # consumer; the web layer reads through SharedState, not the store).
+        # Built on the main thread, written by the engine thread, and now also
+        # written by the web thread (reset). check_same_thread is off and a lock
+        # serializes every public access so the shared connection is safe.
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        self._lock = threading.Lock()
         self._conn.execute(_SCHEMA)
         self._conn.commit()
 
     def record(self, event: WashEvent) -> None:
         counted = 1 if event.person in ("You", "Wife") else 0
-        self._conn.execute(
-            "INSERT INTO events (person, timestamp, confidence, counted) "
-            "VALUES (?, ?, ?, ?)",
-            (event.person, event.timestamp, event.confidence, counted),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO events (person, timestamp, confidence, counted) "
+                "VALUES (?, ?, ?, ?)",
+                (event.person, event.timestamp, event.confidence, counted),
+            )
+            self._conn.commit()
+
+    def reset(self, now: float) -> None:
+        # Non-destructive: append a marker; totals only count events after it.
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO events (person, timestamp, confidence, counted) "
+                "VALUES (?, ?, ?, ?)",
+                (_RESET_MARKER, now, 0.0, 0),
+            )
+            self._conn.commit()
 
     def totals(self, now: float) -> dict:
-        all_time = self._tally()
-        start, end = self._day_bounds(now)
-        today = self._tally(start, end)
-        return {"today": today, "all_time": all_time}
+        with self._lock:
+            floor = self._latest_reset()
+            all_time = self._tally(floor)
+            start, end = self._day_bounds(now)
+            today = self._tally(max(start, floor), end)
+            return {"today": today, "all_time": all_time}
 
-    def _tally(self, start: float | None = None, end: float | None = None) -> dict:
+    def _latest_reset(self) -> float:
+        row = self._conn.execute(
+            "SELECT MAX(timestamp) FROM events WHERE person = ?", (_RESET_MARKER,)
+        ).fetchone()
+        return row[0] if row and row[0] is not None else 0.0
+
+    def _tally(self, start: float, end: float | None = None) -> dict:
         sql = (
             "SELECT person, COUNT(*) FROM events "
-            "WHERE counted = 1 AND person IN ('You', 'Wife')"
+            "WHERE counted = 1 AND person IN ('You', 'Wife') AND timestamp >= ?"
         )
-        params: list[float] = []
-        if start is not None:
-            sql += " AND timestamp >= ? AND timestamp < ?"
-            params += [start, end]
+        params: list[float] = [start]
+        if end is not None:
+            sql += " AND timestamp < ?"
+            params.append(end)
         sql += " GROUP BY person"
         result = {"You": 0, "Wife": 0}
         for person, count in self._conn.execute(sql, params):

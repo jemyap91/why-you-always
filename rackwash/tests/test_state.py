@@ -31,3 +31,23 @@ def test_latest_jpeg_returns_published_bytes():
     state = SharedState()
     state.publish(b"abc", {}, camera_online=True)
     assert state.latest_jpeg() == b"abc"
+
+
+def test_show_detections_defaults_false_and_toggles():
+    state = SharedState()
+    assert state.show_detections() is False
+    assert state.snapshot()["show_detections"] is False
+    state.toggle_detections()
+    assert state.show_detections() is True
+    state.toggle_detections()
+    assert state.show_detections() is False
+
+
+def test_publish_and_snapshot_carry_detections():
+    state = SharedState()
+    state.publish(None, {}, camera_online=True, detections=["plate", "cup"])
+    assert state.snapshot()["detections"] == ["plate", "cup"]
+
+
+def test_detections_default_empty():
+    assert SharedState().snapshot()["detections"] == []
